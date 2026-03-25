@@ -8,7 +8,7 @@ interface HeaderProps {
 export const Header: React.FC<HeaderProps> = ({ userId }) => (
   <header className="bg-slate-800/50 backdrop-blur-sm p-3 text-center fixed top-0 left-0 right-0 z-10">
     <div className="flex items-center justify-center gap-2">
-      <img src="/nodeflow_icon.svg" alt="Nodeflow" className="h-5 w-5" />
+      <img src={`${import.meta.env.BASE_URL}nodeflow_icon.svg`} alt="Nodeflow" className="h-5 w-5" />
       <h1 className="text-xl font-bold text-cyan-400">Treino Ocular</h1>
     </div>
     {userId && <p className="text-xs text-slate-400">ID: {userId}</p>}
