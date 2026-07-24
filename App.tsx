@@ -32,7 +32,14 @@ import {
 import { Card } from './components/common';
 
 // --- Main Menu ---
-const MainMenu: React.FC<{ setView: SetView }> = ({ setView }) => {
+interface MainMenuProps {
+    setView: SetView;
+    reminderIntervalMinutes: number;
+    onReminderIntervalChange: (minutes: number) => void;
+    reminderEnabled: boolean;
+    onReminderEnabledChange: (enabled: boolean) => void;
+}
+const MainMenu: React.FC<MainMenuProps> = ({ setView, reminderIntervalMinutes, onReminderIntervalChange, reminderEnabled, onReminderEnabledChange }) => {
     const TrainingIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className="h-16 w-16" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>;
     const DiagnosisIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className="h-16 w-16" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" /></svg>;
 
@@ -52,6 +59,32 @@ const MainMenu: React.FC<{ setView: SetView }> = ({ setView }) => {
                 onClick={() => setView(View.DiagnosisMenu)}
                 icon={<DiagnosisIcon />}
             />
+            <div className="flex flex-col items-center gap-2">
+                <label className="flex items-center gap-2 text-slate-300 text-sm cursor-pointer select-none">
+                    <input
+                        type="checkbox"
+                        checked={reminderEnabled}
+                        onChange={(e) => onReminderEnabledChange(e.target.checked)}
+                        className="w-4 h-4 accent-cyan-500"
+                    />
+                    Lembrete de pausa para os olhos
+                </label>
+                {reminderEnabled && (
+                    <label className="flex items-center gap-2 text-slate-300 text-sm">
+                        A cada
+                        <select
+                            value={reminderIntervalMinutes}
+                            onChange={(e) => onReminderIntervalChange(parseInt(e.target.value, 10))}
+                            className="bg-slate-800 border-2 border-slate-700 rounded-md px-2 py-1 focus:border-cyan-500 focus:outline-none"
+                        >
+                            <option value={20}>20 min (regra 20-20-20)</option>
+                            <option value={30}>30 min</option>
+                            <option value={45}>45 min</option>
+                            <option value={60}>60 min</option>
+                        </select>
+                    </label>
+                )}
+            </div>
             <p className="text-slate-400 text-sm text-center max-w-xs pt-4">
                 Esta app é uma ferramenta de bem-estar visual e não substitui aconselhamento médico profissional.
             </p>
@@ -81,11 +114,18 @@ const App: React.FC = () => {
     }, []);
 
     useEffect(() => {
-        const INTERVAL = 20 * 60 * 1000;
+        if (!settings.reminderEnabled) return;
+
+        const INTERVAL = settings.reminderIntervalMinutes * 60 * 1000;
         const STORAGE_KEY = 'ocular_last202020';
 
         const scheduleNext = () => {
-            const last = parseInt(localStorage.getItem(STORAGE_KEY) || '0', 10);
+            const stored = localStorage.getItem(STORAGE_KEY);
+            // No record yet (first ever visit): start the count from now instead of
+            // treating the missing key as "infinitely overdue" and firing immediately.
+            const last = stored === null ? Date.now() : parseInt(stored, 10);
+            if (stored === null) localStorage.setItem(STORAGE_KEY, String(last));
+
             const elapsed = Date.now() - last;
             const delay = elapsed >= INTERVAL ? 0 : INTERVAL - elapsed;
 
@@ -99,7 +139,7 @@ const App: React.FC = () => {
 
         const timerRef = { current: scheduleNext() };
         return () => clearTimeout(timerRef.current);
-    }, []);
+    }, [settings.reminderIntervalMinutes, settings.reminderEnabled]);
 
     const navigateBack = () => {
         const parentMap: { [key in View]?: View } = {
@@ -128,7 +168,13 @@ const App: React.FC = () => {
 
     const renderView = () => {
         switch (view) {
-            case View.MainMenu: return <MainMenu setView={setView} />;
+            case View.MainMenu: return <MainMenu
+                setView={setView}
+                reminderIntervalMinutes={settings.reminderIntervalMinutes}
+                onReminderIntervalChange={(v) => updateSettings('reminderIntervalMinutes', v)}
+                reminderEnabled={settings.reminderEnabled}
+                onReminderEnabledChange={(v) => updateSettings('reminderEnabled', v)}
+            />;
             // Training
             case View.TrainingMenu: return <TrainingMenu setView={setView} />;
             case View.NearFarFocus: return <NearFarFocus settings={settings.nearFarFocus} updateSettings={updateSettings} setView={setView} soundEnabled={settings.soundEnabled} onToggleSound={(v) => updateSettings('soundEnabled', v)}/>;
@@ -150,7 +196,13 @@ const App: React.FC = () => {
             case View.DiagnosisHistory: return <DiagnosisHistory diagnoses={diagnoses} />;
             case View.DepthPerception: return <DepthPerceptionTest addDiagnosis={addDiagnosis} />;
             case View.Autostereogram: return <AutostereogramTest />;
-            default: return <MainMenu setView={setView} />;
+            default: return <MainMenu
+                setView={setView}
+                reminderIntervalMinutes={settings.reminderIntervalMinutes}
+                onReminderIntervalChange={(v) => updateSettings('reminderIntervalMinutes', v)}
+                reminderEnabled={settings.reminderEnabled}
+                onReminderEnabledChange={(v) => updateSettings('reminderEnabled', v)}
+            />;
         }
     };
 

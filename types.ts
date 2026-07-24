@@ -32,6 +32,8 @@ export interface UserSettings {
   nearFocus: ExerciseSettings;
   saccades: ExerciseSettings;
   soundEnabled: boolean;
+  reminderIntervalMinutes: number;
+  reminderEnabled: boolean;
 }
 
 export enum DiagnosisType {

@@ -10,6 +10,8 @@ const DEFAULT_SETTINGS: UserSettings = {
   // FIX: Added duration to satisfy the ExerciseSettings type, which requires it.
   saccades: { duration: 1.5, repetitions: 15 },
   soundEnabled: true,
+  reminderIntervalMinutes: 20,
+  reminderEnabled: true,
 };
 
 export const useUserData = () => {
