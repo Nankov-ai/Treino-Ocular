@@ -26,14 +26,15 @@ Single-page React app with no router. Navigation is managed entirely via a `view
 
 ### State & persistence
 `useUserData` (hooks/useUserData.ts) is the single source of truth for user data. It exposes:
-- `settings` — exercise configuration (duration, reps) plus the global `soundEnabled` flag, persisted to localStorage per user
+- `settings` — exercise configuration (duration, reps) plus global flags: `soundEnabled`, `reminderEnabled`, `reminderIntervalMinutes`, persisted to localStorage per user
 - `diagnoses` — array of `DiagnosisRecord`, persisted to localStorage per user
-- `updateSettings(key, value)` — generic over `keyof UserSettings` (works for both per-exercise settings objects and the top-level `soundEnabled` boolean); saves immediately to localStorage
+- `updateSettings(key, value)` — generic over `keyof UserSettings` (works for both per-exercise settings objects and the top-level booleans/numbers); saves immediately to localStorage
 - `addDiagnosis(type, result)` — appends a record and saves
 
 `services/storage.ts` handles all localStorage access. Each user gets a generated anonymous ID (`user_<timestamp>_<random>`) stored under `ocularAppUserId`. Data keys follow `ocularAppData_<userId>_<key>`.
 
-The 20-20-20 rule timer persists its last-fired timestamp under `ocular_last202020` so it survives page reloads and correctly fires the remaining delay.
+### 20-20-20 reminder
+The reminder timer (`App.tsx`) persists its last-fired timestamp under `ocular_last202020` so it survives page reloads and correctly fires the remaining delay. It's gated behind `settings.reminderEnabled` (toggle on the main menu) and its period comes from `settings.reminderIntervalMinutes` (20/30/45/60, default 20 — the "20" in "20-20-20" is a real recommendation, so don't silently change the default). When `ocular_last202020` has no stored value yet (first-ever visit), the effect seeds it with `Date.now()` instead of firing immediately — treating a missing key as "infinitely overdue" was a real bug that made the reminder pop up the instant the app loaded.
 
 ### Component organisation
 
@@ -73,7 +74,7 @@ Deployed to GitHub Pages under the `/Treino-Ocular/` subpath. Vite `base` is set
 Loaded via CDN in `index.html` — there is no `tailwind.config.js`. Custom utility classes (e.g. `grid-cols-20`) do not exist; use inline `style` props for non-standard values.
 
 ### Notifications
-The app requests `Notification` permission on first load and fires a native browser notification alongside the 20-20-20 modal. Both are triggered by the same `setTimeout` chain in `App.tsx`.
+The app requests `Notification` permission on first load and fires a native browser notification alongside the 20-20-20 modal. Both are triggered by the same `setTimeout` chain in `App.tsx`, and both are skipped when `settings.reminderEnabled` is `false`.
 
 ## graphify — Knowledge Graph
 
