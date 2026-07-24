@@ -27,10 +27,11 @@ export const BackButton: React.FC<BackButtonProps> = ({ onClick }) => (
 interface CardProps {
   title: string;
   description: string;
+  subtitle?: string;
   onClick: () => void;
   icon: JSX.Element;
 }
-export const Card: React.FC<CardProps> = ({ title, description, onClick, icon }) => (
+export const Card: React.FC<CardProps> = ({ title, description, subtitle, onClick, icon }) => (
   <div
     onClick={onClick}
     className="bg-slate-800 rounded-lg p-6 flex flex-col items-center text-center cursor-pointer
@@ -39,7 +40,25 @@ export const Card: React.FC<CardProps> = ({ title, description, onClick, icon })
     <div className="text-cyan-400 mb-4">{icon}</div>
     <h3 className="font-bold text-lg text-white mb-2">{title}</h3>
     <p className="text-slate-400 text-sm">{description}</p>
+    {subtitle && <p className="text-slate-300 text-sm mt-2">{subtitle}</p>}
   </div>
+);
+
+// --- SoundToggle ---
+interface SoundToggleProps {
+    enabled: boolean;
+    onChange: (value: boolean) => void;
+}
+export const SoundToggle: React.FC<SoundToggleProps> = ({ enabled, onChange }) => (
+    <label className="flex items-center justify-center gap-2 text-slate-300 text-sm cursor-pointer select-none">
+        <input
+            type="checkbox"
+            checked={enabled}
+            onChange={(e) => onChange(e.target.checked)}
+            className="w-4 h-4 accent-cyan-500"
+        />
+        🔊 Sinal sonoro nas trocas de foco
+    </label>
 );
 
 // --- Button ---

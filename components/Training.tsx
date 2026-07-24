@@ -2,7 +2,8 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import type { SetView, UserSettings } from '../types';
 import { View } from '../types';
-import { Button, BackButton, Card, SettingsInput } from './common';
+import { Button, BackButton, Card, SettingsInput, SoundToggle } from './common';
+import { playNearTone, playFarTone, playCueTone } from '../services/audio';
 
 // --- Icons (embedded for simplicity) ---
 const EyeIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>;
@@ -93,9 +94,11 @@ interface NearFarFocusProps {
     settings: UserSettings['nearFarFocus'];
     updateSettings: (key: 'nearFarFocus', newSettings: UserSettings['nearFarFocus']) => void;
     setView: SetView;
+    soundEnabled: boolean;
+    onToggleSound: (value: boolean) => void;
 }
 
-export const NearFarFocus: React.FC<NearFarFocusProps> = ({ settings, updateSettings, setView }) => {
+export const NearFarFocus: React.FC<NearFarFocusProps> = ({ settings, updateSettings, setView, soundEnabled, onToggleSound }) => {
     const [isStarted, setIsStarted] = useState(false);
     const [isNear, setIsNear] = useState(true);
     const [repsLeft, setRepsLeft] = useState(settings.repetitions);
@@ -107,17 +110,19 @@ export const NearFarFocus: React.FC<NearFarFocusProps> = ({ settings, updateSett
 
         const interval = setInterval(() => {
             setIsNear(prev => {
+                const next = !prev;
+                if (soundEnabled) (next ? playNearTone : playFarTone)();
                 if (!prev) { // Was far, now is near, one rep is complete
                     setRepsLeft(r => r - 1);
                     setIsFlashing(true);
                     setTimeout(() => setIsFlashing(false), 300);
                 }
-                return !prev;
+                return next;
             });
         }, settings.duration * 1000);
 
         return () => clearInterval(interval);
-    }, [isStarted, repsLeft, settings.duration]);
+    }, [isStarted, repsLeft, settings.duration, soundEnabled]);
     
     useEffect(() => {
         if(repsLeft === 0 && isStarted) {
@@ -140,6 +145,8 @@ export const NearFarFocus: React.FC<NearFarFocusProps> = ({ settings, updateSett
             <SettingsScreen onStart={handleStart} settings={settings} onSettingsChange={(s) => updateSettings('nearFarFocus', s)}>
                 <SettingsInput label="Duração" value={settings.duration} onChange={v => updateSettings('nearFarFocus', {...settings, duration: v})} unit="segundos" />
                 <SettingsInput label="Repetições" value={settings.repetitions} onChange={v => updateSettings('nearFarFocus', {...settings, repetitions: v})} unit="vezes" />
+                <SoundToggle enabled={soundEnabled} onChange={onToggleSound} />
+                <p className="text-slate-400 text-sm text-center">Toca um tom agudo para "foca no perto" e um tom grave para "foca no longe" — assim sabe quando trocar mesmo sem olhar para o ecrã.</p>
                  {repsLeft === 0 && <p className="text-green-400 text-center font-bold">Treino concluído!</p>}
             </SettingsScreen>
         );
@@ -151,8 +158,11 @@ export const NearFarFocus: React.FC<NearFarFocusProps> = ({ settings, updateSett
 
     return (
         <ExerciseWrapper title="Foco Perto/Longe" className={isFlashing ? 'bg-green-800' : ''}>
-            <div className="transition-all duration-500 flex flex-col items-center">
-                <p className={`font-black text-white transition-all duration-700 ${isNear ? 'text-4xl' : 'text-9xl'}`}>
+            <div className="transition-all duration-500 flex flex-col items-center w-full px-4">
+                <p
+                    className="font-black text-white transition-all duration-700 text-center leading-tight break-words max-w-full"
+                    style={{ fontSize: isNear ? 'clamp(1.75rem, 8vw, 2.5rem)' : 'clamp(2.5rem, 16vw, 8rem)' }}
+                >
                     {isNear ? "FOCA NO PERTO" : "FOCA NO LONGE"}
                 </p>
                 <p className="text-slate-400 mt-8 text-xl">Repetições restantes: {repsLeft}</p>
@@ -296,18 +306,25 @@ export const NearFocus: React.FC<NearFocusProps> = ({ settings, updateSettings, 
 };
 
 // --- Accommodative Facility (Facilidade de Foco) ---
-export const AccommodativeFacility: React.FC = () => {
+interface AccommodativeFacilityProps {
+    soundEnabled: boolean;
+    onToggleSound: (value: boolean) => void;
+}
+export const AccommodativeFacility: React.FC<AccommodativeFacilityProps> = ({ soundEnabled, onToggleSound }) => {
     const SESSION_SECONDS = 60;
     const [started, setStarted] = useState(false);
     const [finished, setFinished] = useState(false);
     const [phase, setPhase] = useState<'near' | 'far'>('near');
     const [letter, setLetter] = useState('A');
+    const LETTER_SIZES = ['text-xl', 'text-2xl', 'text-3xl', 'text-4xl', 'text-5xl', 'text-6xl', 'text-7xl'];
+    const [letterSize, setLetterSize] = useState(LETTER_SIZES[2]);
     const [cycles, setCycles] = useState(0);
     const [secondsLeft, setSecondsLeft] = useState(SESSION_SECONDS);
 
     const generateLetter = useCallback(() => {
         const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ23456789";
         setLetter(alphabet[Math.floor(Math.random() * alphabet.length)]);
+        setLetterSize(LETTER_SIZES[Math.floor(Math.random() * LETTER_SIZES.length)]);
     }, []);
 
     useEffect(() => {
@@ -328,8 +345,10 @@ export const AccommodativeFacility: React.FC = () => {
 
     const handleConfirm = () => {
         if (phase === 'near') {
+            if (soundEnabled) playFarTone();
             setPhase('far');
         } else {
+            if (soundEnabled) playNearTone();
             setCycles(c => c + 1);
             generateLetter();
             setPhase('near');
@@ -365,6 +384,8 @@ export const AccommodativeFacility: React.FC = () => {
                         <li>Repita o ciclo o mais rápido possível, sem perder a nitidez</li>
                     </ol>
                     <p className="text-slate-400 text-sm">60 segundos • mede quantos ciclos perto/longe consegue completar</p>
+                    <SoundToggle enabled={soundEnabled} onChange={onToggleSound} />
+                    <p className="text-slate-400 text-sm">Toca um tom agudo ao mudar para "perto" e um tom grave ao mudar para "longe" — útil porque nesta fase deve estar a olhar para longe, não para o ecrã.</p>
                     <Button onClick={handleStart}>Iniciar</Button>
                 </div>
             </ExerciseWrapper>
@@ -377,7 +398,7 @@ export const AccommodativeFacility: React.FC = () => {
                 {phase === 'near' ? (
                     <>
                         <p className="text-slate-300">Foque no ecrã e leia a letra</p>
-                        <p className="font-mono text-9xl font-bold text-white">{letter}</p>
+                        <p className={`font-mono ${letterSize} font-bold text-white transition-all duration-300`}>{letter}</p>
                     </>
                 ) : (
                     <>
@@ -477,7 +498,7 @@ export const Saccades: React.FC<SaccadesProps> = ({ settings, updateSettings, se
 
 
 // --- Guided Exercise Timer Helper ---
-const useGuidedTimer = (steps: { label: string; duration: number }[], reps: number) => {
+const useGuidedTimer = (steps: { label: string; duration: number }[], reps: number, onStepChange?: (nextIndex: number) => void) => {
     const [started, setStarted] = useState(false);
     const [finished, setFinished] = useState(false);
     const [repsDone, setRepsDone] = useState(0);
@@ -495,6 +516,7 @@ const useGuidedTimer = (steps: { label: string; duration: number }[], reps: numb
             }
             setStepIndex(nextStep);
             setSecondsLeft(steps[nextStep].duration);
+            onStepChange?.(nextStep);
             return;
         }
         const t = setTimeout(() => setSecondsLeft(s => s - 1), 1000);
@@ -506,7 +528,11 @@ const useGuidedTimer = (steps: { label: string; duration: number }[], reps: numb
 };
 
 // --- Blinking Guided ---
-export const BlinkingInfo: React.FC = () => {
+interface BlinkingInfoProps {
+    soundEnabled: boolean;
+    onToggleSound: (value: boolean) => void;
+}
+export const BlinkingInfo: React.FC<BlinkingInfoProps> = ({ soundEnabled, onToggleSound }) => {
     const steps = [
         { label: 'Feche os olhos suavemente', duration: 2 },
         { label: 'Abra os olhos', duration: 1 },
@@ -514,7 +540,8 @@ export const BlinkingInfo: React.FC = () => {
         { label: 'Abra e relaxe', duration: 1 },
     ];
     const REPS = 10;
-    const { started, finished, repsDone, stepIndex, secondsLeft, start } = useGuidedTimer(steps, REPS);
+    const onStepChange = useCallback(() => { if (soundEnabled) playCueTone(); }, [soundEnabled]);
+    const { started, finished, repsDone, stepIndex, secondsLeft, start } = useGuidedTimer(steps, REPS, onStepChange);
 
     if (finished) return <CompletionScreen title="Pestanejar Consciente" />;
 
@@ -524,6 +551,8 @@ export const BlinkingInfo: React.FC = () => {
                 <div className="space-y-4 max-w-sm text-center">
                     <p className="text-slate-300">Estimula as glândulas lacrimais e alivia os olhos secos causados pelo ecrã.</p>
                     <p className="text-slate-400 text-sm">{REPS} ciclos completos • ~60 segundos</p>
+                    <SoundToggle enabled={soundEnabled} onChange={onToggleSound} />
+                    <p className="text-slate-400 text-sm">Toca um sinal curto em cada mudança (fechar/abrir) — pode seguir o ritmo sem espreitar o ecrã de olhos entreabertos.</p>
                     <Button onClick={start}>Iniciar</Button>
                 </div>
             ) : (
@@ -540,7 +569,11 @@ export const BlinkingInfo: React.FC = () => {
 };
 
 // --- Palming Guided ---
-export const PalmingInfo: React.FC = () => {
+interface PalmingInfoProps {
+    soundEnabled: boolean;
+    onToggleSound: (value: boolean) => void;
+}
+export const PalmingInfo: React.FC<PalmingInfoProps> = ({ soundEnabled, onToggleSound }) => {
     const DURATION = 120; // 2 minutes
     const [started, setStarted] = useState(false);
     const [secondsLeft, setSecondsLeft] = useState(DURATION);
@@ -548,10 +581,15 @@ export const PalmingInfo: React.FC = () => {
 
     useEffect(() => {
         if (!started || finished) return;
-        if (secondsLeft <= 0) { setFinished(true); return; }
+        if (secondsLeft <= 0) {
+            if (soundEnabled) playCueTone();
+            setFinished(true);
+            return;
+        }
+        if (secondsLeft === DURATION / 2 && soundEnabled) playCueTone();
         const t = setTimeout(() => setSecondsLeft(s => s - 1), 1000);
         return () => clearTimeout(t);
-    }, [started, secondsLeft, finished]);
+    }, [started, secondsLeft, finished, soundEnabled]);
 
     const mins = Math.floor(secondsLeft / 60);
     const secs = secondsLeft % 60;
@@ -569,6 +607,8 @@ export const PalmingInfo: React.FC = () => {
                         <li>Respire fundo — foque na escuridão total</li>
                     </ol>
                     <p className="text-slate-400 text-sm">2 minutos de relaxamento</p>
+                    <SoundToggle enabled={soundEnabled} onChange={onToggleSound} />
+                    <p className="text-slate-400 text-sm">Toca um sinal a meio e no fim dos 2 minutos — útil porque os olhos estão fechados e não dá para ver o cronómetro.</p>
                     <Button onClick={() => setStarted(true)}>Iniciar</Button>
                 </div>
             ) : (
@@ -809,7 +849,7 @@ export const LookFar: React.FC = () => {
                     <p className="text-6xl">🌄</p>
                     <p className="text-slate-300 text-lg">Olhe para longe — relaxe os olhos</p>
                     <p className="text-5xl font-bold text-cyan-400">{mins}:{secs.toString().padStart(2, '0')}</p>
-                    <p className="text-slate-500 text-sm">Não foque em nada específico</p>
+                    <p className="text-slate-400 text-sm">Não foque em nada específico</p>
                 </div>
             )}
         </ExerciseWrapper>

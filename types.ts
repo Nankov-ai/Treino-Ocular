@@ -31,6 +31,7 @@ export interface UserSettings {
   nearFarFocus: ExerciseSettings;
   nearFocus: ExerciseSettings;
   saccades: ExerciseSettings;
+  soundEnabled: boolean;
 }
 
 export enum DiagnosisType {

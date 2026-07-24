@@ -196,7 +196,7 @@ export const DiagnosisHistory: React.FC<DiagnosisHistoryProps> = ({ diagnoses })
                         <div key={record.id} className="bg-slate-800 p-4 rounded-lg">
                             <div className="flex justify-between items-center mb-2">
                                 <p className="font-bold text-cyan-400">{record.type}</p>
-                                <p className="text-xs text-slate-400">{new Date(record.timestamp).toLocaleString('pt-PT')}</p>
+                                <p className="text-sm text-slate-400">{new Date(record.timestamp).toLocaleString('pt-PT')}</p>
                             </div>
                             <div className="text-sm text-slate-300">
                                 {formatResult(record.type, record.result)}
@@ -288,7 +288,7 @@ export const DepthPerceptionTest: React.FC<DepthPerceptionProps> = ({ addDiagnos
                             );
                         })}
                     </div>
-                    <div className="flex justify-center gap-4 text-xs text-slate-400">
+                    <div className="flex justify-center gap-4 text-sm text-slate-400">
                         <span><span className="inline-block w-3 h-3 rounded-full bg-green-400 mr-1"/>Acertou</span>
                         <span><span className="inline-block w-3 h-3 rounded-full bg-yellow-400 mr-1"/>Não selecionou</span>
                         <span><span className="inline-block w-3 h-3 rounded-full bg-red-500 mr-1"/>Falso positivo</span>
@@ -392,7 +392,7 @@ export const AutostereogramTest: React.FC = () => {
                     <li>Afaste lentamente o ecrã mantendo esse olhar descontraído.</li>
                     <li>Se funcionar, deverá ver uma forma a flutuar acima do padrão de pontos.</li>
                 </ol>
-                <p className="text-slate-400 text-xs mt-2">Dica: pode demorar alguns minutos. Não force — relaxe os olhos.</p>
+                <p className="text-slate-400 text-sm mt-2">Dica: pode demorar alguns minutos. Não force — relaxe os olhos.</p>
             </div>
 
             {/* Canvas container — full width */}

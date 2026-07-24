@@ -38,8 +38,23 @@ const MainMenu: React.FC<{ setView: SetView }> = ({ setView }) => {
 
     return (
         <div className="min-h-screen flex flex-col justify-center items-center p-4 space-y-8">
-            <Card title="Treino Diário" description="Exercícios para fortalecer e relaxar os seus olhos." onClick={() => setView(View.TrainingMenu)} icon={<TrainingIcon />} />
-            <Card title="Diagnóstico" description="Autoavaliação para monitorizar a sua visão." onClick={() => setView(View.DiagnosisMenu)} icon={<DiagnosisIcon />} />
+            <Card
+                title="Treino Diário"
+                description="Exercícios para fortalecer e relaxar os seus olhos."
+                subtitle="5-10 min/dia — foco, rastreamento e relaxamento"
+                onClick={() => setView(View.TrainingMenu)}
+                icon={<TrainingIcon />}
+            />
+            <Card
+                title="Diagnóstico"
+                description="Autoavaliação para monitorizar a sua visão."
+                subtitle="Testes rápidos — não substitui uma consulta de oftalmologia"
+                onClick={() => setView(View.DiagnosisMenu)}
+                icon={<DiagnosisIcon />}
+            />
+            <p className="text-slate-400 text-sm text-center max-w-xs pt-4">
+                Esta app é uma ferramenta de bem-estar visual e não substitui aconselhamento médico profissional.
+            </p>
         </div>
     );
 };
@@ -116,13 +131,13 @@ const App: React.FC = () => {
             case View.MainMenu: return <MainMenu setView={setView} />;
             // Training
             case View.TrainingMenu: return <TrainingMenu setView={setView} />;
-            case View.NearFarFocus: return <NearFarFocus settings={settings.nearFarFocus} updateSettings={updateSettings} setView={setView}/>;
+            case View.NearFarFocus: return <NearFarFocus settings={settings.nearFarFocus} updateSettings={updateSettings} setView={setView} soundEnabled={settings.soundEnabled} onToggleSound={(v) => updateSettings('soundEnabled', v)}/>;
             case View.PencilPushUp: return <PencilPushUp />;
             case View.NearFocus: return <NearFocus settings={settings.nearFocus} updateSettings={updateSettings} setView={setView}/>;
-            case View.AccommodativeFacility: return <AccommodativeFacility />;
+            case View.AccommodativeFacility: return <AccommodativeFacility soundEnabled={settings.soundEnabled} onToggleSound={(v) => updateSettings('soundEnabled', v)} />;
             case View.Saccades: return <Saccades settings={settings.saccades} updateSettings={updateSettings} setView={setView}/>;
-            case View.BlinkingInfo: return <BlinkingInfo />;
-            case View.PalmingInfo: return <PalmingInfo />;
+            case View.BlinkingInfo: return <BlinkingInfo soundEnabled={settings.soundEnabled} onToggleSound={(v) => updateSettings('soundEnabled', v)} />;
+            case View.PalmingInfo: return <PalmingInfo soundEnabled={settings.soundEnabled} onToggleSound={(v) => updateSettings('soundEnabled', v)} />;
             case View.FigureEight: return <FigureEight />;
             case View.EyeRolls: return <EyeRolls />;
             case View.SmoothPursuit: return <SmoothPursuit />;

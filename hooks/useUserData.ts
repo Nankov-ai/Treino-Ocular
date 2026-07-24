@@ -9,6 +9,7 @@ const DEFAULT_SETTINGS: UserSettings = {
   nearFocus: { duration: 10, repetitions: 10 },
   // FIX: Added duration to satisfy the ExerciseSettings type, which requires it.
   saccades: { duration: 1.5, repetitions: 15 },
+  soundEnabled: true,
 };
 
 export const useUserData = () => {
