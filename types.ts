@@ -6,14 +6,20 @@ export enum View {
   NearFarFocus,
   PencilPushUp,
   NearFocus,
+  AccommodativeFacility,
   Saccades,
   BlinkingInfo,
-  Rule202020Info,
   PalmingInfo,
+  FigureEight,
+  EyeRolls,
+  SmoothPursuit,
+  LookFar,
   VisualAcuityTest,
   AmslerGrid,
   SymptomQuestionnaire,
-  DiagnosisHistory
+  DiagnosisHistory,
+  DepthPerception,
+  Autostereogram,
 }
 
 export interface ExerciseSettings {
@@ -30,7 +36,8 @@ export interface UserSettings {
 export enum DiagnosisType {
   Acuity = 'Acuidade Visual',
   Amsler = 'Grelha de Amsler',
-  Symptoms = 'Questionário de Sintomas'
+  Symptoms = 'Questionário de Sintomas',
+  DepthPerception = 'Perceção de Profundidade',
 }
 
 export interface DiagnosisRecord {

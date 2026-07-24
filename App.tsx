@@ -4,22 +4,29 @@ import { View, SetView } from './types';
 import { useUserData } from './hooks/useUserData';
 import { Header, BackButton, Modal } from './components/common';
 
-import { 
-    TrainingMenu, 
-    NearFarFocus, 
-    PencilPushUp, 
-    NearFocus, 
-    Saccades, 
-    BlinkingInfo, 
-    PalmingInfo 
+import {
+    TrainingMenu,
+    NearFarFocus,
+    PencilPushUp,
+    NearFocus,
+    AccommodativeFacility,
+    Saccades,
+    BlinkingInfo,
+    PalmingInfo,
+    FigureEight,
+    EyeRolls,
+    SmoothPursuit,
+    LookFar,
 } from './components/Training';
 
-import { 
-    DiagnosisMenu, 
-    VisualAcuityTest, 
-    AmslerGrid, 
-    SymptomQuestionnaire, 
-    DiagnosisHistory 
+import {
+    DiagnosisMenu,
+    VisualAcuityTest,
+    AmslerGrid,
+    SymptomQuestionnaire,
+    DiagnosisHistory,
+    DepthPerceptionTest,
+    AutostereogramTest,
 } from './components/Diagnosis';
 
 import { Card } from './components/common';
@@ -37,17 +44,46 @@ const MainMenu: React.FC<{ setView: SetView }> = ({ setView }) => {
     );
 };
 
+const requestNotificationPermission = async () => {
+    if ('Notification' in window && Notification.permission === 'default') {
+        await Notification.requestPermission();
+    }
+};
+
+const sendNotification = (title: string, body: string) => {
+    if ('Notification' in window && Notification.permission === 'granted') {
+        new Notification(title, { body, icon: `${import.meta.env.BASE_URL}nodeflow_icon.svg` });
+    }
+};
+
 const App: React.FC = () => {
     const [view, setView] = useState<View>(View.MainMenu);
-    const { userId, settings, diagnoses, updateSettings, addDiagnosis } = useUserData();
+    const { settings, diagnoses, updateSettings, addDiagnosis } = useUserData();
     const [is202020ModalOpen, setIs202020ModalOpen] = useState(false);
 
     useEffect(() => {
-        const timer = setInterval(() => {
-            setIs202020ModalOpen(true);
-        }, 20 * 60 * 1000); // 20 minutes
+        requestNotificationPermission();
+    }, []);
 
-        return () => clearInterval(timer);
+    useEffect(() => {
+        const INTERVAL = 20 * 60 * 1000;
+        const STORAGE_KEY = 'ocular_last202020';
+
+        const scheduleNext = () => {
+            const last = parseInt(localStorage.getItem(STORAGE_KEY) || '0', 10);
+            const elapsed = Date.now() - last;
+            const delay = elapsed >= INTERVAL ? 0 : INTERVAL - elapsed;
+
+            return setTimeout(() => {
+                setIs202020ModalOpen(true);
+                sendNotification('Regra 20-20-20 👁️', 'Olhe para algo a 6 metros de distância por 20 segundos.');
+                localStorage.setItem(STORAGE_KEY, String(Date.now()));
+                timerRef.current = scheduleNext();
+            }, delay);
+        };
+
+        const timerRef = { current: scheduleNext() };
+        return () => clearTimeout(timerRef.current);
     }, []);
 
     const navigateBack = () => {
@@ -57,13 +93,20 @@ const App: React.FC = () => {
             [View.NearFarFocus]: View.TrainingMenu,
             [View.PencilPushUp]: View.TrainingMenu,
             [View.NearFocus]: View.TrainingMenu,
+            [View.AccommodativeFacility]: View.TrainingMenu,
             [View.Saccades]: View.TrainingMenu,
             [View.BlinkingInfo]: View.TrainingMenu,
             [View.PalmingInfo]: View.TrainingMenu,
+            [View.FigureEight]: View.TrainingMenu,
+            [View.EyeRolls]: View.TrainingMenu,
+            [View.SmoothPursuit]: View.TrainingMenu,
+            [View.LookFar]: View.TrainingMenu,
             [View.VisualAcuityTest]: View.DiagnosisMenu,
             [View.AmslerGrid]: View.DiagnosisMenu,
             [View.SymptomQuestionnaire]: View.DiagnosisMenu,
             [View.DiagnosisHistory]: View.DiagnosisMenu,
+            [View.DepthPerception]: View.DiagnosisMenu,
+            [View.Autostereogram]: View.DiagnosisMenu,
         };
         setView(parentMap[view] ?? View.MainMenu);
     };
@@ -76,25 +119,31 @@ const App: React.FC = () => {
             case View.NearFarFocus: return <NearFarFocus settings={settings.nearFarFocus} updateSettings={updateSettings} setView={setView}/>;
             case View.PencilPushUp: return <PencilPushUp />;
             case View.NearFocus: return <NearFocus settings={settings.nearFocus} updateSettings={updateSettings} setView={setView}/>;
+            case View.AccommodativeFacility: return <AccommodativeFacility />;
             case View.Saccades: return <Saccades settings={settings.saccades} updateSettings={updateSettings} setView={setView}/>;
             case View.BlinkingInfo: return <BlinkingInfo />;
             case View.PalmingInfo: return <PalmingInfo />;
+            case View.FigureEight: return <FigureEight />;
+            case View.EyeRolls: return <EyeRolls />;
+            case View.SmoothPursuit: return <SmoothPursuit />;
+            case View.LookFar: return <LookFar />;
             // Diagnosis
             case View.DiagnosisMenu: return <DiagnosisMenu setView={setView} />;
             case View.VisualAcuityTest: return <VisualAcuityTest addDiagnosis={addDiagnosis} />;
             case View.AmslerGrid: return <AmslerGrid addDiagnosis={addDiagnosis} />;
             case View.SymptomQuestionnaire: return <SymptomQuestionnaire addDiagnosis={addDiagnosis} />;
             case View.DiagnosisHistory: return <DiagnosisHistory diagnoses={diagnoses} />;
+            case View.DepthPerception: return <DepthPerceptionTest addDiagnosis={addDiagnosis} />;
+            case View.Autostereogram: return <AutostereogramTest />;
             default: return <MainMenu setView={setView} />;
         }
     };
 
     return (
         <div className="antialiased">
-            <Header userId={userId} />
+            <Header />
             <main className="pt-20">
-                {view !== View.MainMenu && view !== View.PencilPushUp && <BackButton onClick={navigateBack} />}
-                {view === View.PencilPushUp && <BackButton onClick={navigateBack} />}
+                {view !== View.MainMenu && <BackButton onClick={navigateBack} />}
                 
                 {renderView()}
             </main>
