@@ -18,7 +18,8 @@ const scheduleTone = (ctx: AudioContext, frequency: number, durationMs: number) 
     const gain = ctx.createGain();
     oscillator.type = 'sine';
     oscillator.frequency.value = frequency;
-    gain.gain.setValueAtTime(0.15, ctx.currentTime);
+    // 0.15 was barely audible, 0.45 was too loud — 0.28 is the middle ground.
+    gain.gain.setValueAtTime(0.28, ctx.currentTime);
     gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + durationMs / 1000);
     oscillator.connect(gain);
     gain.connect(ctx.destination);
@@ -43,4 +44,14 @@ export const playNearTone = () => playTone(880);
 // Tom grave — usado para sinalizar "foco ao longe"
 export const playFarTone = () => playTone(440);
 // Tom neutro curto — usado para transições genéricas (ex: pestanejar, meio/fim de temporizador)
-export const playCueTone = () => playTone(660, 120);
+export const playCueTone = () => playTone(660, 200);
+// Tons distintos para "fechar" (grave) vs "abrir" (agudo) nos exercícios de piscar,
+// para se distinguir a ação seguinte sem abrir os olhos.
+export const playCloseTone = () => playTone(500, 200);
+export const playOpenTone = () => playTone(950, 200);
+// Pequeno "ta-da" de duas notas — usado para marcar o fim de algo (distinto do
+// tom único de playCueTone, usado para marcos intermédios como o meio do Palming).
+export const playEndTone = () => {
+    playTone(660, 150);
+    setTimeout(() => playTone(880, 220), 160);
+};

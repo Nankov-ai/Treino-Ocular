@@ -7,7 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Commands
 
 ```bash
-npm run dev      # Start dev server at http://localhost:3001/Treino-Ocular/
+npm run dev      # Start dev server at http://localhost:3001/Treino-Ocular/ (falls back to next free port if taken)
 npm run build    # Production build
 npm run preview  # Preview production build
 ```
@@ -28,8 +28,12 @@ Single-page React app with no router. Navigation is managed entirely via a `view
 `useUserData` (hooks/useUserData.ts) is the single source of truth for user data. It exposes:
 - `settings` — exercise configuration (duration, reps) plus global flags: `soundEnabled`, `reminderEnabled`, `reminderIntervalMinutes`, persisted to localStorage per user
 - `diagnoses` — array of `DiagnosisRecord`, persisted to localStorage per user
+- `customRoutine` / `saveCustomRoutine(views)` — the user's own exercise sequence for "A Minha Rotina", persisted separately
+- `routineProgress` / `completeRoutine()` — `{ lastCompletedDate, streakCount }`; `completeRoutine()` is idempotent per calendar day (calling it twice the same day doesn't double the streak) and resets to 1 if a day was missed
 - `updateSettings(key, value)` — generic over `keyof UserSettings` (works for both per-exercise settings objects and the top-level booleans/numbers); saves immediately to localStorage
 - `addDiagnosis(type, result)` — appends a record and saves
+
+`loadData` results are shallow-merged over `DEFAULT_SETTINGS` (`{ ...DEFAULT_SETTINGS, ...loadData(...) }`) rather than used as-is — otherwise a `settings` object saved before a new field existed (e.g. an older localStorage record missing `pencilPushUp`) would leave that field `undefined` and crash any component that reads it unconditionally. Any newly added top-level `UserSettings` field needs a `DEFAULT_SETTINGS` entry, and that merge is what makes it retroactively safe for existing users.
 
 `services/storage.ts` handles all localStorage access. Each user gets a generated anonymous ID (`user_<timestamp>_<random>`) stored under `ocularAppUserId`. Data keys follow `ocularAppData_<userId>_<key>`.
 
@@ -41,25 +45,39 @@ The reminder timer (`App.tsx`) persists its last-fired timestamp under `ocular_l
 | File | Contents |
 |---|---|
 | `components/common.tsx` | `Header`, `BackButton`, `Card` (supports optional `subtitle`), `Button`, `Modal`, `SettingsInput`, `SoundToggle` |
-| `components/Training.tsx` | All training exercises + `TrainingMenu` organised in 3 categories |
+| `components/Training.tsx` | All training exercises + `TrainingMenu` organised in 3 categories + `RoutineAdvanceContext` |
 | `components/Diagnosis.tsx` | All diagnostic tests + `DiagnosisMenu` |
-| `types.ts` | `View` enum, `DiagnosisType` enum, `UserSettings`, `DiagnosisRecord` |
-| `services/audio.ts` | Web Audio API tone generator (`playNearTone`, `playFarTone`, `playCueTone`) — no audio assets, synthesized beeps |
+| `components/Routine.tsx` | `EXERCISE_CATALOG`, `PRESET_ROUTINES`, `RoutineMenu`, `RoutineComplete` |
+| `types.ts` | `View` enum, `DiagnosisType` enum, `UserSettings`, `DiagnosisRecord`, `Routine`, `RoutineProgress` |
+| `services/audio.ts` | Web Audio API tone generator (`playNearTone`, `playFarTone`, `playCueTone`, `playCloseTone`, `playOpenTone`, `playEndTone`) — no audio assets, synthesized beeps |
 
 ### Training categories (TrainingMenu)
 - **Foco & Convergência**: NearFarFocus, PencilPushUp, NearFocus, AccommodativeFacility
 - **Movimento & Rastreamento**: Saccades, FigureEight, EyeRolls, SmoothPursuit
-- **Relaxamento**: BlinkingInfo (guided timer), PalmingInfo (2-min countdown), LookFar (5-min rest)
+- **Relaxamento**: BlinkingInfo (guided timer), Blink3s (hold-blink), PalmingInfo (2-min countdown), LookFar (5-min rest)
 
 ### Audio cues (services/audio.ts)
-Exercises where the user isn't looking at the screen at the moment of a phase change (so a visual cue alone is useless) play a short synthesized tone via the Web Audio API instead of relying on a sound file:
+Exercises where the user isn't looking at the screen at the moment of a phase change (so a visual cue alone is useless) play a short synthesized tone via the Web Audio API instead of relying on a sound file. Pairs use **distinct** tones so the next action is identifiable by ear alone (matters most with eyes closed):
 - **NearFarFocus** / **AccommodativeFacility** — high tone (880Hz) on "near", low tone (440Hz) on "far"
-- **BlinkingInfo** — short neutral tone (660Hz) on every step change, useful with eyes closed/half-open
-- **PalmingInfo** — same neutral tone at the halfway point and at the end of the 2-minute rest
+- **BlinkingInfo** / **Blink3s** — low tone (500Hz) on "feche", high tone (950Hz) on "abra"
+- **PalmingInfo** — single mid tone (660Hz) at the halfway point, two-note ascending "ta-da" (`playEndTone`) at the end — deliberately different from the halfway beep so the two milestones aren't confused
 
-Gated behind the `settings.soundEnabled` boolean (`SoundToggle` component), default `true`. `playTone()` guards against the `AudioContext` starting in a `suspended` state — the first calls used to be silently dropped because `resume()` is async and was fired without awaiting; scheduling now waits for `resume()` to settle before starting the oscillator.
+Gated behind the `settings.soundEnabled` boolean (`SoundToggle` component), default `true`. Peak gain is `0.28` (tuned down from an initial `0.45` that users found too loud, up from `0.15` that was barely audible). `playTone()` guards against the `AudioContext` starting in a `suspended` state — the first calls used to be silently dropped because `resume()` is async and was fired without awaiting; scheduling now waits for `resume()` to settle before starting the oscillator.
 
 `AccommodativeFacility` also randomizes the near-phase letter size each cycle (`text-xl` to `text-7xl`) so recognition requires real accommodative effort instead of always rendering a giant, effortlessly-legible glyph.
+
+`PencilPushUp` has two modes: a default **guided** mode (configurable duration/reps, like the other exercises, ending in `CompletionScreen`) and a **free** mode (the original unlimited manual/auto oscillation, no rep counting, reachable via a link on the settings screen) — the free mode has no natural end, so it's excluded from `EXERCISE_CATALOG`/routines.
+
+Rep-counting exercises with a near/far (or similar) pair use a **half-cycle counter** (`halfCyclesLeft`, displayed as `Math.ceil(halfCyclesLeft / 2)`) rather than decrementing once per pair — this is what `Saccades` always did, and `NearFarFocus`/`NearFocus` were migrated to match after a background-tab timer throttling bug let a burst of catch-up ticks decrement a plain counter past 0 without the completion effect ever seeing exactly `0` (fixed generally with `Math.max(0, ...)` clamps, but the half-cycle pattern is the more robust shape for anything counting phase pairs).
+
+### Routines (components/Routine.tsx)
+"A Minha Rotina" (`View.RoutineMenu`) runs a sequence of exercises back-to-back: 3 presets (`PRESET_ROUTINES`) plus a custom routine the user builds from `EXERCISE_CATALOG` (checkboxes, persisted via `saveCustomRoutine`). Only exercises with a real completion state are catalog-eligible — `PencilPushUp`'s free mode and anything with no finish condition can't participate.
+
+`App.tsx` holds routine progress as local state `{ queue: View[]; index: number } | null` (not persisted — a routine is a single sitting) and provides it through `RoutineAdvanceContext` as `{ next: () => void; nextLabel: string | null }`. `CompletionScreen` (and `AccommodativeFacility`'s custom finished screen, which doesn't use `CompletionScreen`) reads this context: when set, it shows "Próximo: <nome>" and a "Começar Treino" / "Concluir Rotina" button instead of nothing. **Advancing is always a manual tap, never a silent timer** — an earlier version auto-advanced via a `setTimeout` in `CompletionScreen`, which raced each exercise's own internal "reset after 2s" timer and occasionally looped back to that exercise's start screen, looking like a repeat. The fix was two-sided: remove the per-exercise internal auto-reset (they now just stay on `CompletionScreen` until navigated away, like every other exercise already did) and replace the silent timer with an explicit button tap.
+
+The header back button behaves differently inside a routine: it does **not** skip to the next exercise (that was tried and rejected — a back arrow that skips forward has no discoverable logic). It abandons the routine entirely and returns to `RoutineMenu`; see the `if (routine)` branch at the top of `navigateBack()` in `App.tsx`.
+
+`completeRoutine()` only fires once the routine's `advanceRoutine()` reaches past the last exercise — not on manual abandonment via the back button.
 
 ### Diagnosis screens
 - VisualAcuityTest, AmslerGrid, SymptomQuestionnaire — save results via `addDiagnosis`
@@ -69,6 +87,9 @@ Gated behind the `settings.soundEnabled` boolean (`SoundToggle` component), defa
 
 ### Deployment
 Deployed to GitHub Pages under the `/Treino-Ocular/` subpath. Vite `base` is set to `/Treino-Ocular/`. All asset paths (e.g. the Nodeflow logo) must use `import.meta.env.BASE_URL` as prefix.
+
+### SettingsInput (components/common.tsx)
+Keeps its own local `text` string state (synced from `value` via `useEffect`) instead of being a plain controlled `<input value={value}>`. A plain controlled number input snaps back to the last valid value on every keystroke, which makes it impossible to clear the field before typing a new number — `text` is allowed to sit empty mid-edit, and `onBlur` reverts it only if what's left isn't a valid number. `onFocus` also selects all text so clicking in and typing replaces the value instead of appending to it.
 
 ### Tailwind
 Loaded via CDN in `index.html` — there is no `tailwind.config.js`. Custom utility classes (e.g. `grid-cols-20`) do not exist; use inline `style` props for non-standard values.

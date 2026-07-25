@@ -12,11 +12,13 @@ import {
     AccommodativeFacility,
     Saccades,
     BlinkingInfo,
+    Blink3s,
     PalmingInfo,
     FigureEight,
     EyeRolls,
     SmoothPursuit,
     LookFar,
+    RoutineAdvanceContext,
 } from './components/Training';
 
 import {
@@ -30,6 +32,8 @@ import {
 } from './components/Diagnosis';
 
 import { Card } from './components/common';
+import { RoutineMenu, RoutineComplete, EXERCISE_CATALOG } from './components/Routine';
+import type { RoutineProgress } from './types';
 
 // --- Main Menu ---
 interface MainMenuProps {
@@ -38,10 +42,12 @@ interface MainMenuProps {
     onReminderIntervalChange: (minutes: number) => void;
     reminderEnabled: boolean;
     onReminderEnabledChange: (enabled: boolean) => void;
+    routineProgress: RoutineProgress;
 }
-const MainMenu: React.FC<MainMenuProps> = ({ setView, reminderIntervalMinutes, onReminderIntervalChange, reminderEnabled, onReminderEnabledChange }) => {
+const MainMenu: React.FC<MainMenuProps> = ({ setView, reminderIntervalMinutes, onReminderIntervalChange, reminderEnabled, onReminderEnabledChange, routineProgress }) => {
     const TrainingIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className="h-16 w-16" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>;
     const DiagnosisIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className="h-16 w-16" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" /></svg>;
+    const RoutineIcon = () => <span className="text-5xl">🔥</span>;
 
     return (
         <div className="min-h-screen flex flex-col justify-center items-center p-4 space-y-8">
@@ -51,6 +57,13 @@ const MainMenu: React.FC<MainMenuProps> = ({ setView, reminderIntervalMinutes, o
                 subtitle="5-10 min/dia — foco, rastreamento e relaxamento"
                 onClick={() => setView(View.TrainingMenu)}
                 icon={<TrainingIcon />}
+            />
+            <Card
+                title="A Minha Rotina"
+                description="Rotinas prontas ou personalizadas, em sequência."
+                subtitle={routineProgress.streakCount > 0 ? `🔥 ${routineProgress.streakCount} dia${routineProgress.streakCount > 1 ? 's' : ''} seguido${routineProgress.streakCount > 1 ? 's' : ''}` : 'Crie o hábito diário'}
+                onClick={() => setView(View.RoutineMenu)}
+                icon={<RoutineIcon />}
             />
             <Card
                 title="Diagnóstico"
@@ -106,8 +119,30 @@ const sendNotification = (title: string, body: string) => {
 
 const App: React.FC = () => {
     const [view, setView] = useState<View>(View.MainMenu);
-    const { settings, diagnoses, updateSettings, addDiagnosis } = useUserData();
+    const { settings, diagnoses, updateSettings, addDiagnosis, customRoutine, saveCustomRoutine, routineProgress, completeRoutine } = useUserData();
     const [is202020ModalOpen, setIs202020ModalOpen] = useState(false);
+    const [routine, setRoutine] = useState<{ queue: View[]; index: number } | null>(null);
+
+    const startRoutine = (exercises: View[]) => {
+        setRoutine({ queue: exercises, index: 0 });
+        setView(exercises[0]);
+    };
+
+    // Shared by the manual back-button skip and the automatic advance fired by
+    // CompletionScreen once an exercise finishes on its own.
+    const advanceRoutine = () => {
+        setRoutine(prev => {
+            if (!prev) return prev;
+            const nextIndex = prev.index + 1;
+            if (nextIndex < prev.queue.length) {
+                setView(prev.queue[nextIndex]);
+                return { ...prev, index: nextIndex };
+            }
+            completeRoutine();
+            setView(View.RoutineComplete);
+            return null;
+        });
+    };
 
     useEffect(() => {
         requestNotificationPermission();
@@ -142,6 +177,16 @@ const App: React.FC = () => {
     }, [settings.reminderIntervalMinutes, settings.reminderEnabled]);
 
     const navigateBack = () => {
+        // Mid-routine, the back arrow abandons the routine and returns to its
+        // menu — it's not a "skip to next" control. Advancing between
+        // exercises happens automatically when one finishes (see advanceRoutine
+        // wired through RoutineAdvanceContext).
+        if (routine) {
+            setRoutine(null);
+            setView(View.RoutineMenu);
+            return;
+        }
+
         const parentMap: { [key in View]?: View } = {
             [View.TrainingMenu]: View.MainMenu,
             [View.DiagnosisMenu]: View.MainMenu,
@@ -151,6 +196,7 @@ const App: React.FC = () => {
             [View.AccommodativeFacility]: View.TrainingMenu,
             [View.Saccades]: View.TrainingMenu,
             [View.BlinkingInfo]: View.TrainingMenu,
+            [View.Blink3s]: View.TrainingMenu,
             [View.PalmingInfo]: View.TrainingMenu,
             [View.FigureEight]: View.TrainingMenu,
             [View.EyeRolls]: View.TrainingMenu,
@@ -162,6 +208,8 @@ const App: React.FC = () => {
             [View.DiagnosisHistory]: View.DiagnosisMenu,
             [View.DepthPerception]: View.DiagnosisMenu,
             [View.Autostereogram]: View.DiagnosisMenu,
+            [View.RoutineMenu]: View.MainMenu,
+            [View.RoutineComplete]: View.MainMenu,
         };
         setView(parentMap[view] ?? View.MainMenu);
     };
@@ -174,15 +222,17 @@ const App: React.FC = () => {
                 onReminderIntervalChange={(v) => updateSettings('reminderIntervalMinutes', v)}
                 reminderEnabled={settings.reminderEnabled}
                 onReminderEnabledChange={(v) => updateSettings('reminderEnabled', v)}
+                routineProgress={routineProgress}
             />;
             // Training
             case View.TrainingMenu: return <TrainingMenu setView={setView} />;
             case View.NearFarFocus: return <NearFarFocus settings={settings.nearFarFocus} updateSettings={updateSettings} setView={setView} soundEnabled={settings.soundEnabled} onToggleSound={(v) => updateSettings('soundEnabled', v)}/>;
-            case View.PencilPushUp: return <PencilPushUp />;
+            case View.PencilPushUp: return <PencilPushUp settings={settings.pencilPushUp} updateSettings={updateSettings} />;
             case View.NearFocus: return <NearFocus settings={settings.nearFocus} updateSettings={updateSettings} setView={setView}/>;
             case View.AccommodativeFacility: return <AccommodativeFacility soundEnabled={settings.soundEnabled} onToggleSound={(v) => updateSettings('soundEnabled', v)} />;
             case View.Saccades: return <Saccades settings={settings.saccades} updateSettings={updateSettings} setView={setView}/>;
             case View.BlinkingInfo: return <BlinkingInfo soundEnabled={settings.soundEnabled} onToggleSound={(v) => updateSettings('soundEnabled', v)} />;
+            case View.Blink3s: return <Blink3s soundEnabled={settings.soundEnabled} onToggleSound={(v) => updateSettings('soundEnabled', v)} />;
             case View.PalmingInfo: return <PalmingInfo soundEnabled={settings.soundEnabled} onToggleSound={(v) => updateSettings('soundEnabled', v)} />;
             case View.FigureEight: return <FigureEight />;
             case View.EyeRolls: return <EyeRolls />;
@@ -196,23 +246,42 @@ const App: React.FC = () => {
             case View.DiagnosisHistory: return <DiagnosisHistory diagnoses={diagnoses} />;
             case View.DepthPerception: return <DepthPerceptionTest addDiagnosis={addDiagnosis} />;
             case View.Autostereogram: return <AutostereogramTest />;
+            // Routine
+            case View.RoutineMenu: return <RoutineMenu
+                setView={setView}
+                customRoutine={customRoutine}
+                onSaveCustomRoutine={saveCustomRoutine}
+                routineProgress={routineProgress}
+                onStartRoutine={startRoutine}
+            />;
+            case View.RoutineComplete: return <RoutineComplete setView={setView} routineProgress={routineProgress} />;
             default: return <MainMenu
                 setView={setView}
                 reminderIntervalMinutes={settings.reminderIntervalMinutes}
                 onReminderIntervalChange={(v) => updateSettings('reminderIntervalMinutes', v)}
                 reminderEnabled={settings.reminderEnabled}
                 onReminderEnabledChange={(v) => updateSettings('reminderEnabled', v)}
+                routineProgress={routineProgress}
             />;
         }
     };
+
+    const routineAdvanceValue = routine ? {
+        next: advanceRoutine,
+        nextLabel: routine.index + 1 < routine.queue.length
+            ? (EXERCISE_CATALOG.find(e => e.view === routine.queue[routine.index + 1])?.label ?? null)
+            : null,
+    } : null;
 
     return (
         <div className="antialiased">
             <Header />
             <main className="pt-20">
                 {view !== View.MainMenu && <BackButton onClick={navigateBack} />}
-                
-                {renderView()}
+
+                <RoutineAdvanceContext.Provider value={routineAdvanceValue}>
+                    {renderView()}
+                </RoutineAdvanceContext.Provider>
             </main>
 
             <Modal

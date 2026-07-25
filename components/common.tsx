@@ -106,14 +106,33 @@ interface SettingsInputProps {
     step?: number;
     unit: string;
 }
-export const SettingsInput: React.FC<SettingsInputProps> = ({ label, value, onChange, min = 1, max = 60, step = 1, unit }) => (
+export const SettingsInput: React.FC<SettingsInputProps> = ({ label, value, onChange, min = 1, max = 60, step = 1, unit }) => {
+    // Local text state so the field can sit empty mid-edit (e.g. after backspacing)
+    // without React snapping it back to the last valid number on every keystroke.
+    const [text, setText] = React.useState(String(value));
+    React.useEffect(() => { setText(String(value)); }, [value]);
+
+    const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const raw = e.target.value;
+        setText(raw);
+        const v = parseInt(raw, 10);
+        if (!isNaN(v)) onChange(v);
+    };
+
+    const handleBlur = () => {
+        if (isNaN(parseInt(text, 10))) setText(String(value));
+    };
+
+    return (
     <div className="flex justify-between items-center bg-slate-800 p-3 rounded-lg">
         <label className="font-medium text-slate-300">{label}</label>
         <div className="flex items-center gap-3">
             <input
                 type="number"
-                value={value}
-                onChange={(e) => { const v = parseInt(e.target.value, 10); if (!isNaN(v)) onChange(v); }}
+                value={text}
+                onChange={handleChange}
+                onFocus={(e) => e.target.select()}
+                onBlur={handleBlur}
                 min={min}
                 max={max}
                 step={step}
@@ -122,4 +141,5 @@ export const SettingsInput: React.FC<SettingsInputProps> = ({ label, value, onCh
             <span className="text-slate-400">{unit}</span>
         </div>
     </div>
-);
+    );
+};

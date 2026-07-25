@@ -1,9 +1,9 @@
 
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useContext, useMemo } from 'react';
 import type { SetView, UserSettings } from '../types';
 import { View } from '../types';
 import { Button, BackButton, Card, SettingsInput, SoundToggle } from './common';
-import { playNearTone, playFarTone, playCueTone } from '../services/audio';
+import { playNearTone, playFarTone, playCueTone, playCloseTone, playOpenTone, playEndTone } from '../services/audio';
 
 // --- Icons (embedded for simplicity) ---
 const EyeIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>;
@@ -45,6 +45,7 @@ export const TrainingMenu: React.FC<TrainingMenuProps> = ({ setView }) => (
 
         <CategorySection title="🌿 Relaxamento" color="text-green-400">
             <Card title="Pestanejar Consciente" description="Exercício guiado para combater os olhos secos." onClick={() => setView(View.BlinkingInfo)} icon={<SparklesIcon />} />
+            <Card title="Piscar 3S" description="Feche e aguente 3 segundos, 10 repetições." onClick={() => setView(View.Blink3s)} icon={<SparklesIcon />} />
             <Card title="Palming" description="2 minutos de escuridão total para relaxar." onClick={() => setView(View.PalmingInfo)} icon={<HandIcon />} />
             <Card title="Olhar ao Longe" description="5 minutos de descanso ativo — o mais eficaz." onClick={() => setView(View.LookFar)} icon={<EyeIcon />} />
         </CategorySection>
@@ -59,17 +60,41 @@ const ExerciseWrapper: React.FC<{ title: string; children: React.ReactNode; clas
     </div>
 );
 
+// --- Routine advance context ---
+// Set by App.tsx while a routine is running; CompletionScreen consumes it to
+// show which exercise is next and let the user start it on their own tap —
+// there's no silent auto-advance, so it can't race an exercise's own timers.
+export interface RoutineAdvance {
+    next: () => void;
+    nextLabel: string | null; // name of the next exercise, or null if this was the last one
+}
+export const RoutineAdvanceContext = React.createContext<RoutineAdvance | null>(null);
+
 // --- Completion Screen ---
-const CompletionScreen: React.FC<{ title: string }> = ({ title }) => (
-    <ExerciseWrapper title={title}>
-        <div className="flex flex-col items-center">
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-24 w-24 text-green-400 animate-bounce" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-            <p className="text-green-400 mt-4 text-2xl font-bold">Treino Concluído!</p>
-        </div>
-    </ExerciseWrapper>
-);
+const CompletionScreen: React.FC<{ title: string }> = ({ title }) => {
+    const routineAdvance = useContext(RoutineAdvanceContext);
+
+    return (
+        <ExerciseWrapper title={title}>
+            <div className="flex flex-col items-center gap-3">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-24 w-24 text-green-400 animate-bounce" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <p className="text-green-400 mt-4 text-2xl font-bold">Treino Concluído!</p>
+                {routineAdvance && (
+                    <>
+                        <p className="text-slate-300">
+                            {routineAdvance.nextLabel ? `Próximo: ${routineAdvance.nextLabel}` : 'Última etapa da rotina'}
+                        </p>
+                        <Button onClick={routineAdvance.next}>
+                            {routineAdvance.nextLabel ? 'Começar Treino' : 'Concluir Rotina'}
+                        </Button>
+                    </>
+                )}
+            </div>
+        </ExerciseWrapper>
+    );
+};
 
 // --- Settings Screen ---
 interface SettingsScreenProps<T> {
@@ -101,42 +126,43 @@ interface NearFarFocusProps {
 export const NearFarFocus: React.FC<NearFarFocusProps> = ({ settings, updateSettings, setView, soundEnabled, onToggleSound }) => {
     const [isStarted, setIsStarted] = useState(false);
     const [isNear, setIsNear] = useState(true);
-    const [repsLeft, setRepsLeft] = useState(settings.repetitions);
+    // Counts near+far half-phases so 1 rep (near + far) decrements the
+    // displayed count exactly once, instead of once per half-phase.
+    const [halfCyclesLeft, setHalfCyclesLeft] = useState(settings.repetitions * 2);
     const [isFlashing, setIsFlashing] = useState(false);
     const [isFinished, setIsFinished] = useState(false);
 
+    const repsLeft = Math.ceil(halfCyclesLeft / 2);
+
     useEffect(() => {
-        if (!isStarted || repsLeft === 0) return;
+        if (!isStarted || halfCyclesLeft <= 0) return;
 
         const interval = setInterval(() => {
             setIsNear(prev => {
                 const next = !prev;
                 if (soundEnabled) (next ? playNearTone : playFarTone)();
                 if (!prev) { // Was far, now is near, one rep is complete
-                    setRepsLeft(r => r - 1);
                     setIsFlashing(true);
                     setTimeout(() => setIsFlashing(false), 300);
                 }
                 return next;
             });
+            setHalfCyclesLeft(h => Math.max(0, h - 1));
         }, settings.duration * 1000);
 
         return () => clearInterval(interval);
-    }, [isStarted, repsLeft, settings.duration, soundEnabled]);
-    
+    }, [isStarted, halfCyclesLeft, settings.duration, soundEnabled]);
+
     useEffect(() => {
-        if(repsLeft === 0 && isStarted) {
+        if(halfCyclesLeft <= 0 && isStarted) {
             setIsFinished(true);
-            const timer = setTimeout(() => {
-                setIsStarted(false);
-                setIsFinished(false);
-            }, 2000);
-            return () => clearTimeout(timer);
         }
-    }, [repsLeft, isStarted]);
-    
+    }, [halfCyclesLeft, isStarted]);
+
     const handleStart = () => {
-        setRepsLeft(settings.repetitions);
+        setHalfCyclesLeft(settings.repetitions * 2);
+        setIsNear(true);
+        setIsFinished(false);
         setIsStarted(true);
     };
 
@@ -147,7 +173,7 @@ export const NearFarFocus: React.FC<NearFarFocusProps> = ({ settings, updateSett
                 <SettingsInput label="Repetições" value={settings.repetitions} onChange={v => updateSettings('nearFarFocus', {...settings, repetitions: v})} unit="vezes" />
                 <SoundToggle enabled={soundEnabled} onChange={onToggleSound} />
                 <p className="text-slate-400 text-sm text-center">Toca um tom agudo para "foca no perto" e um tom grave para "foca no longe" — assim sabe quando trocar mesmo sem olhar para o ecrã.</p>
-                 {repsLeft === 0 && <p className="text-green-400 text-center font-bold">Treino concluído!</p>}
+                 {halfCyclesLeft <= 0 && <p className="text-green-400 text-center font-bold">Treino concluído!</p>}
             </SettingsScreen>
         );
     }
@@ -173,12 +199,20 @@ export const NearFarFocus: React.FC<NearFarFocusProps> = ({ settings, updateSett
 
 
 // --- Pencil Push-Up ---
-export const PencilPushUp: React.FC = () => {
+interface PencilPushUpProps {
+    settings: UserSettings['pencilPushUp'];
+    updateSettings: (key: 'pencilPushUp', newSettings: UserSettings['pencilPushUp']) => void;
+}
+export const PencilPushUp: React.FC<PencilPushUpProps> = ({ settings, updateSettings }) => {
+    const [mode, setMode] = useState<'idle' | 'guided' | 'free'>('idle');
     const [distance, setDistance] = useState(100); // 0 (near) to 100 (far)
     const [isAuto, setIsAuto] = useState(false);
+    const [repsLeft, setRepsLeft] = useState(settings.repetitions);
+    const [isFinished, setIsFinished] = useState(false);
 
+    // Free mode: unlimited manual/automatic oscillation, no rep counting.
     useEffect(() => {
-        if (!isAuto) return;
+        if (mode !== 'free' || !isAuto) return;
         let dir = -1;
         const interval = setInterval(() => {
             setDistance(d => {
@@ -188,10 +222,59 @@ export const PencilPushUp: React.FC = () => {
             });
         }, 50);
         return () => clearInterval(interval);
-    }, [isAuto]);
+    }, [mode, isAuto]);
+
+    // Guided mode: auto near-far cycles, one rep per full far→near→far sweep,
+    // reaching `settings.duration` seconds per direction.
+    useEffect(() => {
+        if (mode !== 'guided' || repsLeft <= 0) return;
+        let dir = -1;
+        const step = 5 / settings.duration;
+        const interval = setInterval(() => {
+            setDistance(d => {
+                let next = d + dir * step;
+                if (next <= 0) { next = 0; dir = 1; }
+                else if (next >= 100) {
+                    next = 100;
+                    dir = -1;
+                    setRepsLeft(r => Math.max(0, r - 1));
+                }
+                return next;
+            });
+        }, 50);
+        return () => clearInterval(interval);
+    }, [mode, repsLeft, settings.duration]);
+
+    useEffect(() => {
+        if (mode === 'guided' && repsLeft <= 0) setIsFinished(true);
+    }, [mode, repsLeft]);
+
+    const handleStartGuided = () => {
+        setRepsLeft(settings.repetitions);
+        setDistance(100);
+        setIsFinished(false);
+        setMode('guided');
+    };
 
     const blurAmount = useMemo(() => Math.max(0, (100 - distance) / 10), [distance]);
     const scaleAmount = useMemo(() => 0.5 + (100 - distance) / 100 * 2, [distance]);
+
+    if (isFinished) {
+        return <CompletionScreen title="Convergência (Lápis)" />;
+    }
+
+    if (mode === 'idle') {
+        return (
+            <SettingsScreen onStart={handleStartGuided} settings={settings} onSettingsChange={(s) => updateSettings('pencilPushUp', s)}>
+                <SettingsInput label="Duração por direção" value={settings.duration} onChange={v => updateSettings('pencilPushUp', { ...settings, duration: v })} unit="segundos" min={2} max={15} />
+                <SettingsInput label="Repetições" value={settings.repetitions} onChange={v => updateSettings('pencilPushUp', { ...settings, repetitions: v })} unit="vezes" min={3} max={20} />
+                <p className="text-slate-400 text-sm text-center">Aproxime o dedo/lápis do nariz e afaste-o, mantendo uma só imagem nítida (sem duplicar).</p>
+                <button onClick={() => setMode('free')} className="text-cyan-400 text-sm text-center w-full hover:text-cyan-300">
+                    Ou praticar em modo livre, sem contagem
+                </button>
+            </SettingsScreen>
+        );
+    }
 
     return (
         <div className="w-full overflow-hidden flex flex-col" style={{ height: 'calc(100vh - 80px)' }}>
@@ -220,13 +303,19 @@ export const PencilPushUp: React.FC = () => {
 
             {/* Controls */}
             <div className="p-4 bg-slate-900/80 backdrop-blur-sm z-20 space-y-3 flex-shrink-0">
-                <div className="flex gap-4">
-                    <Button onClick={() => setDistance(d => Math.max(0, d - 5))} disabled={isAuto}>Aproximar</Button>
-                    <Button onClick={() => setDistance(d => Math.min(100, d + 5))} disabled={isAuto}>Afastar</Button>
-                </div>
-                <Button onClick={() => setIsAuto(!isAuto)} variant={isAuto ? 'secondary' : 'primary'}>
-                    {isAuto ? 'Parar Automático' : 'Iniciar Automático'}
-                </Button>
+                {mode === 'free' ? (
+                    <>
+                        <div className="flex gap-4">
+                            <Button onClick={() => setDistance(d => Math.max(0, d - 5))} disabled={isAuto}>Aproximar</Button>
+                            <Button onClick={() => setDistance(d => Math.min(100, d + 5))} disabled={isAuto}>Afastar</Button>
+                        </div>
+                        <Button onClick={() => setIsAuto(!isAuto)} variant={isAuto ? 'secondary' : 'primary'}>
+                            {isAuto ? 'Parar Automático' : 'Iniciar Automático'}
+                        </Button>
+                    </>
+                ) : (
+                    <p className="text-slate-300 text-center text-lg">Repetições restantes: {repsLeft}</p>
+                )}
             </div>
         </div>
     );
@@ -258,7 +347,7 @@ export const NearFocus: React.FC<NearFocusProps> = ({ settings, updateSettings, 
             setIsFlashing(true);
             setTimeout(() => setIsFlashing(false), 300);
             setRepsLeft(r => {
-                const newReps = r - 1;
+                const newReps = Math.max(0, r - 1);
                 if (newReps > 0) generateLetter();
                 return newReps;
             });
@@ -270,16 +359,12 @@ export const NearFocus: React.FC<NearFocusProps> = ({ settings, updateSettings, 
     useEffect(() => {
         if(repsLeft === 0 && isStarted) {
             setIsFinished(true);
-            const timer = setTimeout(() => {
-                setIsStarted(false);
-                setIsFinished(false);
-            }, 2000);
-            return () => clearTimeout(timer);
         }
     }, [repsLeft, isStarted]);
 
     const handleStart = () => {
         setRepsLeft(settings.repetitions);
+        setIsFinished(false);
         setIsStarted(true);
     };
 
@@ -357,6 +442,8 @@ export const AccommodativeFacility: React.FC<AccommodativeFacilityProps> = ({ so
 
     const cyclesPerMinute = ((cycles / (SESSION_SECONDS - secondsLeft || 1)) * 60).toFixed(1);
 
+    const routineAdvance = useContext(RoutineAdvanceContext);
+
     if (finished) {
         return (
             <ExerciseWrapper title="Facilidade de Foco">
@@ -367,6 +454,16 @@ export const AccommodativeFacility: React.FC<AccommodativeFacilityProps> = ({ so
                     <p className="text-green-400 text-2xl font-bold">Treino Concluído!</p>
                     <p className="text-white text-xl">{cycles} ciclos completos</p>
                     <p className="text-slate-400">≈ {cyclesPerMinute} ciclos/minuto</p>
+                    {routineAdvance && (
+                        <>
+                            <p className="text-slate-300">
+                                {routineAdvance.nextLabel ? `Próximo: ${routineAdvance.nextLabel}` : 'Última etapa da rotina'}
+                            </p>
+                            <Button onClick={routineAdvance.next}>
+                                {routineAdvance.nextLabel ? 'Começar Treino' : 'Concluir Rotina'}
+                            </Button>
+                        </>
+                    )}
                 </div>
             </ExerciseWrapper>
         );
@@ -454,19 +551,15 @@ export const Saccades: React.FC<SaccadesProps> = ({ settings, updateSettings, se
     useEffect(() => {
         if(halfCyclesLeft <= 0 && isStarted) {
             setIsFinished(true);
-            const timer = setTimeout(() => {
-                setIsStarted(false);
-                setIsFinished(false);
-            }, 2000);
-            return () => clearTimeout(timer);
         }
     }, [halfCyclesLeft, isStarted]);
 
     const handleStart = () => {
         setHalfCyclesLeft(settings.repetitions * 2);
+        setIsFinished(false);
         setIsStarted(true);
     };
-    
+
     if (!isStarted) {
         return (
              <SettingsScreen onStart={handleStart} settings={settings} onSettingsChange={(s) => updateSettings('saccades', s)}>
@@ -533,14 +626,19 @@ interface BlinkingInfoProps {
     onToggleSound: (value: boolean) => void;
 }
 export const BlinkingInfo: React.FC<BlinkingInfoProps> = ({ soundEnabled, onToggleSound }) => {
+    // Symmetric durations — the open steps used to be 1s against 2s for closed,
+    // which made the cycle feel rushed and lopsided.
     const steps = [
         { label: 'Feche os olhos suavemente', duration: 2 },
-        { label: 'Abra os olhos', duration: 1 },
+        { label: 'Abra os olhos', duration: 2 },
         { label: 'Feche e aperte gentilmente', duration: 2 },
-        { label: 'Abra e relaxe', duration: 1 },
+        { label: 'Abra e relaxe', duration: 2 },
     ];
-    const REPS = 10;
-    const onStepChange = useCallback(() => { if (soundEnabled) playCueTone(); }, [soundEnabled]);
+    const REPS = 8;
+    const onStepChange = useCallback((nextIndex: number) => {
+        if (!soundEnabled) return;
+        (steps[nextIndex].label.startsWith('Feche') ? playCloseTone : playOpenTone)();
+    }, [soundEnabled]);
     const { started, finished, repsDone, stepIndex, secondsLeft, start } = useGuidedTimer(steps, REPS, onStepChange);
 
     if (finished) return <CompletionScreen title="Pestanejar Consciente" />;
@@ -550,9 +648,9 @@ export const BlinkingInfo: React.FC<BlinkingInfoProps> = ({ soundEnabled, onTogg
             {!started ? (
                 <div className="space-y-4 max-w-sm text-center">
                     <p className="text-slate-300">Estimula as glândulas lacrimais e alivia os olhos secos causados pelo ecrã.</p>
-                    <p className="text-slate-400 text-sm">{REPS} ciclos completos • ~60 segundos</p>
+                    <p className="text-slate-400 text-sm">{REPS} ciclos completos • ~65 segundos</p>
                     <SoundToggle enabled={soundEnabled} onChange={onToggleSound} />
-                    <p className="text-slate-400 text-sm">Toca um sinal curto em cada mudança (fechar/abrir) — pode seguir o ritmo sem espreitar o ecrã de olhos entreabertos.</p>
+                    <p className="text-slate-400 text-sm">Toca um tom grave para "feche" e um tom agudo para "abra" — pode seguir o ritmo de olhos fechados, sem espreitar o ecrã.</p>
                     <Button onClick={start}>Iniciar</Button>
                 </div>
             ) : (
@@ -562,6 +660,48 @@ export const BlinkingInfo: React.FC<BlinkingInfoProps> = ({ soundEnabled, onTogg
                     </div>
                     <p className="text-2xl font-semibold text-white">{steps[stepIndex].label}</p>
                     <p className="text-slate-400">Ciclo {repsDone + 1} de {REPS}</p>
+                </div>
+            )}
+        </ExerciseWrapper>
+    );
+};
+
+// --- Blink 3s (hold-blink protocol) ---
+interface Blink3sProps {
+    soundEnabled: boolean;
+    onToggleSound: (value: boolean) => void;
+}
+export const Blink3s: React.FC<Blink3sProps> = ({ soundEnabled, onToggleSound }) => {
+    const steps = [
+        { label: 'Feche e aguente', duration: 3 },
+        { label: 'Abra os olhos', duration: 2 },
+    ];
+    const REPS = 10;
+    const onStepChange = useCallback((nextIndex: number) => {
+        if (!soundEnabled) return;
+        (steps[nextIndex].label.startsWith('Feche') ? playCloseTone : playOpenTone)();
+    }, [soundEnabled]);
+    const { started, finished, repsDone, stepIndex, secondsLeft, start } = useGuidedTimer(steps, REPS, onStepChange);
+
+    if (finished) return <CompletionScreen title="Piscar 3S" />;
+
+    return (
+        <ExerciseWrapper title="Piscar 3S">
+            {!started ? (
+                <div className="space-y-4 max-w-sm text-center">
+                    <p className="text-slate-300">Feche os olhos e aguente 3 segundos, depois abra — estimula a lubrificação natural.</p>
+                    <p className="text-slate-400 text-sm">{REPS} repetições • ~50 segundos</p>
+                    <SoundToggle enabled={soundEnabled} onChange={onToggleSound} />
+                    <p className="text-slate-400 text-sm">Toca um tom grave para "feche" e um tom agudo para "abra" — pode seguir o ritmo de olhos fechados.</p>
+                    <Button onClick={start}>Iniciar</Button>
+                </div>
+            ) : (
+                <div className="flex flex-col items-center gap-6">
+                    <div className="w-32 h-32 rounded-full bg-slate-700 flex items-center justify-center">
+                        <span className="text-5xl font-bold text-cyan-400">{secondsLeft}</span>
+                    </div>
+                    <p className="text-2xl font-semibold text-white">{steps[stepIndex].label}</p>
+                    <p className="text-slate-400">Repetição {repsDone + 1} de {REPS}</p>
                 </div>
             )}
         </ExerciseWrapper>
@@ -582,7 +722,7 @@ export const PalmingInfo: React.FC<PalmingInfoProps> = ({ soundEnabled, onToggle
     useEffect(() => {
         if (!started || finished) return;
         if (secondsLeft <= 0) {
-            if (soundEnabled) playCueTone();
+            if (soundEnabled) playEndTone();
             setFinished(true);
             return;
         }
@@ -608,7 +748,7 @@ export const PalmingInfo: React.FC<PalmingInfoProps> = ({ soundEnabled, onToggle
                     </ol>
                     <p className="text-slate-400 text-sm">2 minutos de relaxamento</p>
                     <SoundToggle enabled={soundEnabled} onChange={onToggleSound} />
-                    <p className="text-slate-400 text-sm">Toca um sinal a meio e no fim dos 2 minutos — útil porque os olhos estão fechados e não dá para ver o cronómetro.</p>
+                    <p className="text-slate-400 text-sm">Toca um tom a meio e um "ta-da" de duas notas no fim dos 2 minutos — útil porque os olhos estão fechados e não dá para ver o cronómetro.</p>
                     <Button onClick={() => setStarted(true)}>Iniciar</Button>
                 </div>
             ) : (

@@ -9,6 +9,7 @@ export enum View {
   AccommodativeFacility,
   Saccades,
   BlinkingInfo,
+  Blink3s,
   PalmingInfo,
   FigureEight,
   EyeRolls,
@@ -20,6 +21,8 @@ export enum View {
   DiagnosisHistory,
   DepthPerception,
   Autostereogram,
+  RoutineMenu,
+  RoutineComplete,
 }
 
 export interface ExerciseSettings {
@@ -30,6 +33,7 @@ export interface ExerciseSettings {
 export interface UserSettings {
   nearFarFocus: ExerciseSettings;
   nearFocus: ExerciseSettings;
+  pencilPushUp: ExerciseSettings;
   saccades: ExerciseSettings;
   soundEnabled: boolean;
   reminderIntervalMinutes: number;
@@ -48,6 +52,18 @@ export interface DiagnosisRecord {
   timestamp: string;
   type: DiagnosisType;
   result: any;
+}
+
+export interface Routine {
+  id: string;
+  name: string;
+  description: string;
+  exercises: View[];
+}
+
+export interface RoutineProgress {
+  lastCompletedDate: string | null; // 'YYYY-MM-DD'
+  streakCount: number;
 }
 
 export type SetView = (view: View) => void;
