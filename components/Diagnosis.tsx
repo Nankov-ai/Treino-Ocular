@@ -186,7 +186,7 @@ interface DiagnosisHistoryProps {
 }
 export const DiagnosisHistory: React.FC<DiagnosisHistoryProps> = ({ diagnoses }) => {
     return (
-        <div className="p-4 pt-24 space-y-4">
+        <div className="p-4 pt-6 space-y-4">
              <h2 className="text-3xl font-bold text-center mb-6 text-white">Histórico de Diagnósticos</h2>
              {diagnoses.length === 0 ? (
                  <p className="text-center text-slate-400">Ainda não há registos.</p>
@@ -243,7 +243,7 @@ export const DepthPerceptionTest: React.FC<DepthPerceptionProps> = ({ addDiagnos
     };
 
     return (
-        <div className="p-4 pt-24 max-w-lg mx-auto space-y-5">
+        <div className="p-4 pt-6 max-w-lg mx-auto space-y-5">
             <h2 className="text-2xl font-bold text-center text-cyan-400">Perceção de Profundidade</h2>
 
             {/* Limitation notice */}
@@ -370,7 +370,7 @@ export const AutostereogramTest: React.FC = () => {
     const regenerate = () => { setGenerated(false); setTimeout(() => setGenerated(true), 50); };
 
     return (
-        <div className="p-4 pt-24 space-y-4">
+        <div className="p-4 pt-6 space-y-4">
             <h2 className="text-2xl font-bold text-center text-cyan-400">Autostereograma</h2>
 
             {/* Limitation notice */}
