@@ -119,7 +119,7 @@ const sendNotification = (title: string, body: string) => {
 
 const App: React.FC = () => {
     const [view, setView] = useState<View>(View.MainMenu);
-    const { settings, diagnoses, updateSettings, addDiagnosis, customRoutine, saveCustomRoutine, routineProgress, completeRoutine } = useUserData();
+    const { userId, settings, diagnoses, updateSettings, addDiagnosis, customRoutine, saveCustomRoutine, routineProgress, completeRoutine } = useUserData();
     const [is202020ModalOpen, setIs202020ModalOpen] = useState(false);
     const [routine, setRoutine] = useState<{ queue: View[]; index: number } | null>(null);
 
@@ -149,7 +149,14 @@ const App: React.FC = () => {
     }, []);
 
     useEffect(() => {
-        if (!settings.reminderEnabled) return;
+        // Wait for the real persisted settings to load before scheduling anything.
+        // Without this, the first render uses DEFAULT_SETTINGS (reminderEnabled:
+        // true) for an instant before useUserData's async localStorage read
+        // resolves — if the stored "last fired" timestamp was already overdue,
+        // that stale default fires the modal immediately, even when the user
+        // has the reminder turned off. Toggling it off afterwards can't un-open
+        // a modal that already fired.
+        if (!userId || !settings.reminderEnabled) return;
 
         const INTERVAL = settings.reminderIntervalMinutes * 60 * 1000;
         const STORAGE_KEY = 'ocular_last202020';
@@ -174,7 +181,7 @@ const App: React.FC = () => {
 
         const timerRef = { current: scheduleNext() };
         return () => clearTimeout(timerRef.current);
-    }, [settings.reminderIntervalMinutes, settings.reminderEnabled]);
+    }, [userId, settings.reminderIntervalMinutes, settings.reminderEnabled]);
 
     const navigateBack = () => {
         // Mid-routine, the back arrow abandons the routine and returns to its

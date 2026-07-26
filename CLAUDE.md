@@ -40,6 +40,8 @@ Single-page React app with no router. Navigation is managed entirely via a `view
 ### 20-20-20 reminder
 The reminder timer (`App.tsx`) persists its last-fired timestamp under `ocular_last202020` so it survives page reloads and correctly fires the remaining delay. It's gated behind `settings.reminderEnabled` (toggle on the main menu) and its period comes from `settings.reminderIntervalMinutes` (20/30/45/60, default 20 — the "20" in "20-20-20" is a real recommendation, so don't silently change the default). When `ocular_last202020` has no stored value yet (first-ever visit), the effect seeds it with `Date.now()` instead of firing immediately — treating a missing key as "infinitely overdue" was a real bug that made the reminder pop up the instant the app loaded.
 
+The scheduling effect also waits for `userId` to be non-null before doing anything (`if (!userId || !settings.reminderEnabled) return;`). `useUserData`'s `settings` starts out as `DEFAULT_SETTINGS` (which has `reminderEnabled: true`) for the one render before its effect reads the real value from localStorage; without the `userId` guard, that transient default could schedule — and, if `ocular_last202020` was already overdue, immediately fire — the reminder even for a user who has it turned off. `userId` and the real `settings` are set in the same effect call, so React batches them into the same render, making `userId` truthy a reliable signal that `settings` is no longer the default.
+
 ### Component organisation
 
 | File | Contents |
