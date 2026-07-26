@@ -2,7 +2,8 @@
 import React, { useState, useEffect } from 'react';
 import { View, SetView } from './types';
 import { useUserData } from './hooks/useUserData';
-import { Header, BackButton, Modal } from './components/common';
+import { Header, BackButton, Modal, MusicToggle } from './components/common';
+import { playMusic, stopMusic, setMusicVolume } from './services/music';
 
 import {
     TrainingMenu,
@@ -31,7 +32,6 @@ import {
     AutostereogramTest,
 } from './components/Diagnosis';
 
-import { Card } from './components/common';
 import { RoutineMenu, RoutineComplete, EXERCISE_CATALOG } from './components/Routine';
 import type { RoutineProgress } from './types';
 
@@ -43,36 +43,60 @@ interface MainMenuProps {
     reminderEnabled: boolean;
     onReminderEnabledChange: (enabled: boolean) => void;
     routineProgress: RoutineProgress;
+    musicEnabled: boolean;
+    onMusicEnabledChange: (enabled: boolean) => void;
+    musicVolume: number;
+    onMusicVolumeChange: (volume: number) => void;
 }
-const MainMenu: React.FC<MainMenuProps> = ({ setView, reminderIntervalMinutes, onReminderIntervalChange, reminderEnabled, onReminderEnabledChange, routineProgress }) => {
-    const TrainingIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className="h-16 w-16" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>;
-    const DiagnosisIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className="h-16 w-16" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" /></svg>;
-    const RoutineIcon = () => <span className="text-5xl">🔥</span>;
+// Compact horizontal row (icon left, text right) — used only in MainMenu,
+// where three stacked hero-style Cards plus settings no longer fit on a
+// small phone screen (e.g. iPhone SE, 375×667) without scrolling.
+interface MenuRowProps { title: string; description: string; subtitle?: string; onClick: () => void; icon: React.ReactNode; }
+const MenuRow: React.FC<MenuRowProps> = ({ title, description, subtitle, onClick, icon }) => (
+    <div
+        onClick={onClick}
+        className="w-full bg-slate-800 rounded-lg p-[clamp(0.75rem,2.2vh,2.5rem)] flex items-center gap-[clamp(0.75rem,1.6vh,1.5rem)] text-left cursor-pointer
+                   hover:bg-slate-700/80 transition-colors duration-200"
+    >
+        <div className="text-cyan-400 flex-shrink-0">{icon}</div>
+        <div className="min-w-0">
+            <h3 className="font-bold text-white text-[clamp(0.95rem,2.4vh,1.5rem)]">{title}</h3>
+            <p className="text-slate-400 text-[clamp(0.7rem,1.7vh,1.125rem)] leading-snug mt-0.5">{description}</p>
+            {subtitle && <p className="text-slate-300 text-[clamp(0.7rem,1.7vh,1.125rem)] leading-snug mt-1">{subtitle}</p>}
+        </div>
+    </div>
+);
+
+const MainMenu: React.FC<MainMenuProps> = ({ setView, reminderIntervalMinutes, onReminderIntervalChange, reminderEnabled, onReminderEnabledChange, routineProgress, musicEnabled, onMusicEnabledChange, musicVolume, onMusicVolumeChange }) => {
+    const TrainingIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className="h-[clamp(1.5rem,3.6vh,3.25rem)] w-[clamp(1.5rem,3.6vh,3.25rem)]" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>;
+    const DiagnosisIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className="h-[clamp(1.5rem,3.6vh,3.25rem)] w-[clamp(1.5rem,3.6vh,3.25rem)]" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" /></svg>;
+    const RoutineIcon = () => <span className="text-[clamp(1.25rem,3.6vh,2.5rem)]">🔥</span>;
 
     return (
-        <div className="min-h-screen flex flex-col justify-center items-center p-4 space-y-8">
-            <Card
+        <div className="h-[calc(100vh-5rem)] flex flex-col justify-evenly items-center gap-[clamp(0.5rem,1.8vh,2rem)] p-4 max-w-4xl mx-auto w-full">
+            <MenuRow
                 title="Treino Diário"
                 description="Exercícios para fortalecer e relaxar os seus olhos."
                 subtitle="5-10 min/dia — foco, rastreamento e relaxamento"
                 onClick={() => setView(View.TrainingMenu)}
                 icon={<TrainingIcon />}
             />
-            <Card
+            <MenuRow
                 title="A Minha Rotina"
                 description="Rotinas prontas ou personalizadas, em sequência."
                 subtitle={routineProgress.streakCount > 0 ? `🔥 ${routineProgress.streakCount} dia${routineProgress.streakCount > 1 ? 's' : ''} seguido${routineProgress.streakCount > 1 ? 's' : ''}` : 'Crie o hábito diário'}
                 onClick={() => setView(View.RoutineMenu)}
                 icon={<RoutineIcon />}
             />
-            <Card
+            <MenuRow
                 title="Diagnóstico"
                 description="Autoavaliação para monitorizar a sua visão."
                 subtitle="Testes rápidos — não substitui uma consulta de oftalmologia"
                 onClick={() => setView(View.DiagnosisMenu)}
                 icon={<DiagnosisIcon />}
             />
-            <div className="flex flex-col items-center gap-2">
+
+            <div className="flex flex-col items-center gap-1">
                 <label className="flex items-center gap-2 text-slate-300 text-sm cursor-pointer select-none">
                     <input
                         type="checkbox"
@@ -98,7 +122,18 @@ const MainMenu: React.FC<MainMenuProps> = ({ setView, reminderIntervalMinutes, o
                     </label>
                 )}
             </div>
-            <p className="text-slate-400 text-sm text-center max-w-xs pt-4">
+
+            <div className="flex flex-col items-center gap-1">
+                <MusicToggle
+                    enabled={musicEnabled}
+                    onEnabledChange={onMusicEnabledChange}
+                    volume={musicVolume}
+                    onVolumeChange={onMusicVolumeChange}
+                />
+                <p className="text-slate-400 text-sm">Toca durante os exercícios de Foco &amp; Convergência e Relaxamento</p>
+            </div>
+
+            <p className="text-slate-400 text-sm text-center max-w-xs">
                 Esta app é uma ferramenta de bem-estar visual e não substitui aconselhamento médico profissional.
             </p>
         </div>
@@ -147,6 +182,38 @@ const App: React.FC = () => {
     useEffect(() => {
         requestNotificationPermission();
     }, []);
+
+    // Background music only plays behind Foco & Convergência (upbeat "focus"
+    // track) and Relaxamento (calmer "relax" track) — it's tied to `view`
+    // rather than started per-component so leaving any of these screens (back
+    // button, routine advance, finishing) reliably stops it via the same
+    // effect cleanup, instead of duplicating start/stop calls per component.
+    const FOCUS_MUSIC_VIEWS = [View.NearFarFocus, View.PencilPushUp, View.NearFocus, View.AccommodativeFacility];
+    const RELAX_MUSIC_VIEWS = [View.BlinkingInfo, View.Blink3s, View.PalmingInfo, View.LookFar];
+    const desiredTrack: 'focus' | 'relax' | null = FOCUS_MUSIC_VIEWS.includes(view)
+        ? 'focus'
+        : RELAX_MUSIC_VIEWS.includes(view)
+        ? 'relax'
+        : null;
+
+    // Depends on the derived track name (a stable string), not on `view`
+    // directly — moving between two exercises of the same category (e.g.
+    // advancing through a routine) keeps the same track playing instead of
+    // restarting it from the beginning every time the screen changes.
+    useEffect(() => {
+        if (settings.musicEnabled && desiredTrack) {
+            playMusic(desiredTrack, settings.musicVolume);
+        } else {
+            stopMusic();
+        }
+        return () => stopMusic();
+    }, [desiredTrack, settings.musicEnabled]);
+
+    // Volume adjusts live, separately from the play/stop lifecycle above, so
+    // dragging the slider doesn't also restart the track from the beginning.
+    useEffect(() => {
+        setMusicVolume(settings.musicVolume);
+    }, [settings.musicVolume]);
 
     useEffect(() => {
         // Wait for the real persisted settings to load before scheduling anything.
@@ -230,6 +297,10 @@ const App: React.FC = () => {
                 reminderEnabled={settings.reminderEnabled}
                 onReminderEnabledChange={(v) => updateSettings('reminderEnabled', v)}
                 routineProgress={routineProgress}
+                musicEnabled={settings.musicEnabled}
+                onMusicEnabledChange={(v) => updateSettings('musicEnabled', v)}
+                musicVolume={settings.musicVolume}
+                onMusicVolumeChange={(v) => updateSettings('musicVolume', v)}
             />;
             // Training
             case View.TrainingMenu: return <TrainingMenu setView={setView} />;
@@ -269,6 +340,10 @@ const App: React.FC = () => {
                 reminderEnabled={settings.reminderEnabled}
                 onReminderEnabledChange={(v) => updateSettings('reminderEnabled', v)}
                 routineProgress={routineProgress}
+                musicEnabled={settings.musicEnabled}
+                onMusicEnabledChange={(v) => updateSettings('musicEnabled', v)}
+                musicVolume={settings.musicVolume}
+                onMusicVolumeChange={(v) => updateSettings('musicVolume', v)}
             />;
         }
     };

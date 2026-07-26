@@ -38,6 +38,8 @@ export interface UserSettings {
   soundEnabled: boolean;
   reminderIntervalMinutes: number;
   reminderEnabled: boolean;
+  musicEnabled: boolean;
+  musicVolume: number;
 }
 
 export enum DiagnosisType {

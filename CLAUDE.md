@@ -26,7 +26,7 @@ Single-page React app with no router. Navigation is managed entirely via a `view
 
 ### State & persistence
 `useUserData` (hooks/useUserData.ts) is the single source of truth for user data. It exposes:
-- `settings` — exercise configuration (duration, reps) plus global flags: `soundEnabled`, `reminderEnabled`, `reminderIntervalMinutes`, persisted to localStorage per user
+- `settings` — exercise configuration (duration, reps) plus global flags: `soundEnabled`, `reminderEnabled`, `reminderIntervalMinutes`, `musicEnabled`, `musicVolume`, persisted to localStorage per user
 - `diagnoses` — array of `DiagnosisRecord`, persisted to localStorage per user
 - `customRoutine` / `saveCustomRoutine(views)` — the user's own exercise sequence for "A Minha Rotina", persisted separately
 - `routineProgress` / `completeRoutine()` — `{ lastCompletedDate, streakCount }`; `completeRoutine()` is idempotent per calendar day (calling it twice the same day doesn't double the streak) and resets to 1 if a day was missed
@@ -52,6 +52,7 @@ The scheduling effect also waits for `userId` to be non-null before doing anythi
 | `components/Routine.tsx` | `EXERCISE_CATALOG`, `PRESET_ROUTINES`, `RoutineMenu`, `RoutineComplete` |
 | `types.ts` | `View` enum, `DiagnosisType` enum, `UserSettings`, `DiagnosisRecord`, `Routine`, `RoutineProgress` |
 | `services/audio.ts` | Web Audio API tone generator (`playNearTone`, `playFarTone`, `playCueTone`, `playCloseTone`, `playOpenTone`, `playEndTone`) — no audio assets, synthesized beeps |
+| `services/music.ts` | Background music playback (`playMusic(track, volume)`, `stopMusic`, `setMusicVolume`) — a single `HTMLAudioElement` that swaps `.src` between real MP3 files in `public/` |
 
 ### Training categories (TrainingMenu)
 - **Foco & Convergência**: NearFarFocus, PencilPushUp, NearFocus, AccommodativeFacility
@@ -71,6 +72,17 @@ Gated behind the `settings.soundEnabled` boolean (`SoundToggle` component), defa
 `PencilPushUp` has two modes: a default **guided** mode (configurable duration/reps, like the other exercises, ending in `CompletionScreen`) and a **free** mode (the original unlimited manual/auto oscillation, no rep counting, reachable via a link on the settings screen) — the free mode has no natural end, so it's excluded from `EXERCISE_CATALOG`/routines.
 
 Rep-counting exercises with a near/far (or similar) pair use a **half-cycle counter** (`halfCyclesLeft`, displayed as `Math.ceil(halfCyclesLeft / 2)`) rather than decrementing once per pair — this is what `Saccades` always did, and `NearFarFocus`/`NearFocus` were migrated to match after a background-tab timer throttling bug let a burst of catch-up ticks decrement a plain counter past 0 without the completion effect ever seeing exactly `0` (fixed generally with `Math.max(0, ...)` clamps, but the half-cycle pattern is the more robust shape for anything counting phase pairs).
+
+### Background music (services/music.ts)
+Two AI-generated ambient tracks live in `public/` (`sun-through-glass.mp3` for focus, `the-long-exhale.mp3` for relaxation) — authored once with an external tool (not called at runtime; the app has no AI/API dependency), 30s each, looped. `App.tsx` picks the track from `view` via two lists, `FOCUS_MUSIC_VIEWS` and `RELAX_MUSIC_VIEWS`, and derives a single `desiredTrack: 'focus' | 'relax' | null`. Playback is driven by **that derived value, not `view` directly** — moving between two exercises of the same category (e.g. advancing through a routine) keeps the same string, so the effect doesn't re-run and the track isn't restarted from the beginning. Volume changes are a **separate effect** (`setMusicVolume`, no stop/restart) so dragging the slider doesn't also restart playback. Gated behind `settings.musicEnabled` (`MusicToggle` component, common.tsx), default `false`.
+
+### MainMenu fluid layout (App.tsx)
+The main menu went through many iterations chasing "fits any screen size, no dead space, no scroll" — the failure modes worth knowing before touching it again:
+- **Tailwind width breakpoints (`sm:`/`lg:`) don't solve a height problem.** A tall-but-narrow window never triggers them. Anything meant to respond to available vertical space needs a height-based query — this project uses arbitrary Tailwind variants like `[@media(min-height:900px)]:gap-10`, or (better, see below) `clamp()` with `vh` units.
+- **`justify-center` on a `min-h-screen` column** centers content as one block — fine for "no cut-off content", but on a tall window it piles ALL the leftover space into two symmetric margins (still reads as "empty" to a user, even if technically balanced).
+- **`justify-between` on a few large sibling *groups*** (e.g. "all 3 cards" as one group, "reminder" as another) fixes the top/bottom margins but looks *worse* — the few big gaps between groups end up uneven and disconnected from the tight spacing used *inside* each group. The fix was to flatten the structure: every individual row (each `MenuRow`, the reminder block, the music block) is a **direct sibling** in one flex column with `justify-evenly`, so the leftover space divides into many equal gaps instead of a few large, mismatched ones.
+- **The real fix for "adapts to any screen size" was fluid sizing, not just spacing.** `MenuRow` padding, icon size, and font sizes use `clamp(min, Nvh, max)` (e.g. `text-[clamp(0.95rem,2.4vh,1.5rem)]`), and the outer container is `h-[calc(100vh-5rem)]` (exact fit below the fixed header) rather than `min-h-*`. This scales every element continuously with real viewport height — small on a short window, larger on a tall one — so content fits without scrolling at any size instead of just being fixed-size content padded out with (or overflowing) blank space.
+- **Don't stack `pt-24` (or similar) on top of `<main className="pt-20">`.** `App.tsx`'s `<main>` already clears the fixed header; a page adding its own large top padding on top of that doubles the gap. `TrainingMenu`, `RoutineMenu`, and `DiagnosisMenu` were fixed to `pt-6`. Deeper screens (`DiagnosisHistory`, `DepthPerceptionTest`, `AutostereogramTest`, exercise `SettingsScreen`) still use `pt-24` as of this writing — not yet revisited, so don't assume the fix is universal if you're auditing spacing elsewhere.
 
 ### Routines (components/Routine.tsx)
 "A Minha Rotina" (`View.RoutineMenu`) runs a sequence of exercises back-to-back: 3 presets (`PRESET_ROUTINES`) plus a custom routine the user builds from `EXERCISE_CATALOG` (checkboxes, persisted via `saveCustomRoutine`). Only exercises with a real completion state are catalog-eligible — `PencilPushUp`'s free mode and anything with no finish condition can't participate.

@@ -70,7 +70,7 @@ export const RoutineMenu: React.FC<RoutineMenuProps> = ({ customRoutine, onSaveC
     };
 
     return (
-        <div className="p-4 pt-24 space-y-6 max-w-2xl mx-auto">
+        <div className="p-4 pt-6 space-y-6 max-w-2xl mx-auto">
             <h2 className="text-3xl font-bold text-center text-white">A Minha Rotina</h2>
 
             {routineProgress.streakCount > 0 && (

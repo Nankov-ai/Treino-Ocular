@@ -40,7 +40,7 @@ export const Card: React.FC<CardProps> = ({ title, description, subtitle, onClic
     <div className="text-cyan-400 mb-4">{icon}</div>
     <h3 className="font-bold text-lg text-white mb-2">{title}</h3>
     <p className="text-slate-400 text-sm">{description}</p>
-    {subtitle && <p className="text-slate-300 text-sm mt-2">{subtitle}</p>}
+    {subtitle && <p className="text-slate-300 text-sm mt-1">{subtitle}</p>}
   </div>
 );
 
@@ -59,6 +59,41 @@ export const SoundToggle: React.FC<SoundToggleProps> = ({ enabled, onChange }) =
         />
         🔊 Sinal sonoro nas trocas de foco
     </label>
+);
+
+// --- MusicToggle ---
+interface MusicToggleProps {
+    enabled: boolean;
+    onEnabledChange: (value: boolean) => void;
+    volume: number;
+    onVolumeChange: (value: number) => void;
+}
+export const MusicToggle: React.FC<MusicToggleProps> = ({ enabled, onEnabledChange, volume, onVolumeChange }) => (
+    <div className="flex flex-col items-center gap-2">
+        <label className="flex items-center justify-center gap-2 text-slate-300 text-sm cursor-pointer select-none">
+            <input
+                type="checkbox"
+                checked={enabled}
+                onChange={(e) => onEnabledChange(e.target.checked)}
+                className="w-4 h-4 accent-cyan-500"
+            />
+            🎵 Música de fundo
+        </label>
+        {enabled && (
+            <div className="flex items-center gap-2 text-slate-400 text-sm w-full max-w-[220px]">
+                <span>🔈</span>
+                <input
+                    type="range"
+                    min={0}
+                    max={100}
+                    value={volume}
+                    onChange={(e) => onVolumeChange(parseInt(e.target.value, 10))}
+                    className="flex-1 accent-cyan-500"
+                />
+                <span>🔊</span>
+            </div>
+        )}
+    </div>
 );
 
 // --- Button ---

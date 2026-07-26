@@ -15,6 +15,8 @@ const DEFAULT_SETTINGS: UserSettings = {
   soundEnabled: true,
   reminderIntervalMinutes: 20,
   reminderEnabled: true,
+  musicEnabled: false,
+  musicVolume: 35,
 };
 
 export const useUserData = () => {

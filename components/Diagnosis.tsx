@@ -16,7 +16,7 @@ const MagicIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className="h-12 
 // --- Diagnosis Menu ---
 interface DiagnosisMenuProps { setView: SetView; }
 export const DiagnosisMenu: React.FC<DiagnosisMenuProps> = ({ setView }) => (
-    <div className="p-4 pt-24 space-y-4 max-w-2xl mx-auto">
+    <div className="p-4 pt-6 space-y-4 max-w-2xl mx-auto">
         <h2 className="text-3xl font-bold text-center mb-6 text-white">Diagnóstico da Visão</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <Card title="Acuidade Visual" description="Teste simplificado para verificar a sua acuidade." onClick={() => setView(View.VisualAcuityTest)} icon={<ChartIcon />} />
