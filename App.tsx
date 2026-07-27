@@ -130,7 +130,7 @@ const MainMenu: React.FC<MainMenuProps> = ({ setView, reminderIntervalMinutes, o
                     volume={musicVolume}
                     onVolumeChange={onMusicVolumeChange}
                 />
-                <p className="text-slate-400 text-sm">Toca durante os exercícios de Foco &amp; Convergência e Relaxamento</p>
+                <p className="text-slate-400 text-sm">Toca durante os exercícios de Foco &amp; Convergência, Movimento &amp; Rastreamento e Relaxamento</p>
             </div>
 
             <p className="text-slate-400 text-sm text-center max-w-xs">
@@ -188,7 +188,7 @@ const App: React.FC = () => {
     // rather than started per-component so leaving any of these screens (back
     // button, routine advance, finishing) reliably stops it via the same
     // effect cleanup, instead of duplicating start/stop calls per component.
-    const FOCUS_MUSIC_VIEWS = [View.NearFarFocus, View.PencilPushUp, View.NearFocus, View.AccommodativeFacility];
+    const FOCUS_MUSIC_VIEWS = [View.NearFarFocus, View.PencilPushUp, View.NearFocus, View.AccommodativeFacility, View.Saccades, View.FigureEight, View.EyeRolls, View.SmoothPursuit];
     const RELAX_MUSIC_VIEWS = [View.BlinkingInfo, View.Blink3s, View.PalmingInfo, View.LookFar];
     const desiredTrack: 'focus' | 'relax' | null = FOCUS_MUSIC_VIEWS.includes(view)
         ? 'focus'

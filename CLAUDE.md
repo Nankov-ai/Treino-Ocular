@@ -54,6 +54,8 @@ The scheduling effect also waits for `userId` to be non-null before doing anythi
 | `services/audio.ts` | Web Audio API tone generator (`playNearTone`, `playFarTone`, `playCueTone`, `playCloseTone`, `playOpenTone`, `playEndTone`) — no audio assets, synthesized beeps |
 | `services/music.ts` | Background music playback (`playMusic(track, volume)`, `stopMusic`, `setMusicVolume`) — a single `HTMLAudioElement` that swaps `.src` between real MP3 files in `public/` |
 
+`Header` is `position: fixed`, so `BackButton` must be too (not `absolute`) — otherwise the back arrow scrolls away with page content while the header title stays pinned, which is exactly the kind of mismatch to watch for whenever adding fixed-position chrome.
+
 ### Training categories (TrainingMenu)
 - **Foco & Convergência**: NearFarFocus, PencilPushUp, NearFocus, AccommodativeFacility
 - **Movimento & Rastreamento**: Saccades, FigureEight, EyeRolls, SmoothPursuit
@@ -75,6 +77,11 @@ Rep-counting exercises with a near/far (or similar) pair use a **half-cycle coun
 
 ### Background music (services/music.ts)
 Two AI-generated ambient tracks live in `public/` (`sun-through-glass.mp3` for focus, `the-long-exhale.mp3` for relaxation) — authored once with an external tool (not called at runtime; the app has no AI/API dependency), 30s each, looped. `App.tsx` picks the track from `view` via two lists, `FOCUS_MUSIC_VIEWS` and `RELAX_MUSIC_VIEWS`, and derives a single `desiredTrack: 'focus' | 'relax' | null`. Playback is driven by **that derived value, not `view` directly** — moving between two exercises of the same category (e.g. advancing through a routine) keeps the same string, so the effect doesn't re-run and the track isn't restarted from the beginning. Volume changes are a **separate effect** (`setMusicVolume`, no stop/restart) so dragging the slider doesn't also restart playback. Gated behind `settings.musicEnabled` (`MusicToggle` component, common.tsx), default `false`.
+
+`FOCUS_MUSIC_VIEWS` covers both **Foco & Convergência** and **Movimento & Rastreamento** — both categories demand active concentration, unlike **Relaxamento**, so they share the same "focus" track rather than the movement category playing nothing.
+
+### Training category order (TrainingMenu)
+Deliberately **Foco & Convergência → Movimento & Rastreamento → Relaxamento**, not alphabetical or arbitrary — it mirrors a workout structure where relaxation is the cool-down at the end, not a break in the middle of active exercises. Keep Relaxamento last if adding or reordering categories.
 
 ### MainMenu fluid layout (App.tsx)
 The main menu went through many iterations chasing "fits any screen size, no dead space, no scroll" — the failure modes worth knowing before touching it again:

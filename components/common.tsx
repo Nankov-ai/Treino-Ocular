@@ -16,7 +16,7 @@ interface BackButtonProps {
   onClick: () => void;
 }
 export const BackButton: React.FC<BackButtonProps> = ({ onClick }) => (
-  <button onClick={onClick} className="absolute top-4 left-4 text-cyan-400 hover:text-cyan-300 transition-colors z-20">
+  <button onClick={onClick} className="fixed top-4 left-4 text-cyan-400 hover:text-cyan-300 transition-colors z-20">
     <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 17l-5-5m0 0l5-5m-5 5h12" />
     </svg>
