@@ -169,6 +169,7 @@ export const NearFarFocus: React.FC<NearFarFocusProps> = ({ settings, updateSett
     if (!isStarted) {
         return (
             <SettingsScreen onStart={handleStart} settings={settings} onSettingsChange={(s) => updateSettings('nearFarFocus', s)}>
+                <p className="text-slate-300 text-center">Alterne o foco entre o ecrã e um ponto real distante, seguindo o temporizador ou o sinal sonoro.</p>
                 <SettingsInput label="Duração" value={settings.duration} onChange={v => updateSettings('nearFarFocus', {...settings, duration: v})} unit="segundos" />
                 <SettingsInput label="Repetições" value={settings.repetitions} onChange={v => updateSettings('nearFarFocus', {...settings, repetitions: v})} unit="vezes" />
                 <SoundToggle enabled={soundEnabled} onChange={onToggleSound} />
@@ -266,9 +267,9 @@ export const PencilPushUp: React.FC<PencilPushUpProps> = ({ settings, updateSett
     if (mode === 'idle') {
         return (
             <SettingsScreen onStart={handleStartGuided} settings={settings} onSettingsChange={(s) => updateSettings('pencilPushUp', s)}>
+                <p className="text-slate-300 text-center">Aproxime o dedo/lápis do nariz e afaste-o, mantendo uma só imagem nítida (sem duplicar).</p>
                 <SettingsInput label="Duração por direção" value={settings.duration} onChange={v => updateSettings('pencilPushUp', { ...settings, duration: v })} unit="segundos" min={2} max={15} />
                 <SettingsInput label="Repetições" value={settings.repetitions} onChange={v => updateSettings('pencilPushUp', { ...settings, repetitions: v })} unit="vezes" min={3} max={20} />
-                <p className="text-slate-400 text-sm text-center">Aproxime o dedo/lápis do nariz e afaste-o, mantendo uma só imagem nítida (sem duplicar).</p>
                 <button onClick={() => setMode('free')} className="text-cyan-400 text-sm text-center w-full hover:text-cyan-300">
                     Ou praticar em modo livre, sem contagem
                 </button>
@@ -371,6 +372,7 @@ export const NearFocus: React.FC<NearFocusProps> = ({ settings, updateSettings, 
     if (!isStarted) {
         return (
             <SettingsScreen onStart={handleStart} settings={settings} onSettingsChange={(s) => updateSettings('nearFocus', s)}>
+                <p className="text-slate-300 text-center">Mantenha a letra focada e nítida ao perto — ela muda a cada intervalo.</p>
                 <SettingsInput label="Duração Foco" value={settings.duration} onChange={v => updateSettings('nearFocus', {...settings, duration: v})} unit="segundos" />
                 <SettingsInput label="Repetições" value={settings.repetitions} onChange={v => updateSettings('nearFocus', {...settings, repetitions: v})} unit="vezes" />
                  {repsLeft === 0 && <p className="text-green-400 text-center font-bold">Treino concluído!</p>}
@@ -563,6 +565,7 @@ export const Saccades: React.FC<SaccadesProps> = ({ settings, updateSettings, se
     if (!isStarted) {
         return (
              <SettingsScreen onStart={handleStart} settings={settings} onSettingsChange={(s) => updateSettings('saccades', s)}>
+                <p className="text-slate-300 text-center">Mova só os olhos entre os dois pontos, sem mover a cabeça.</p>
                 <SettingsInput label="Repetições" value={settings.repetitions} onChange={v => updateSettings('saccades', {...settings, repetitions: v})} unit="vezes" min={5} max={50}/>
                  {halfCyclesLeft <= 0 && <p className="text-green-400 text-center font-bold">Treino concluído!</p>}
             </SettingsScreen>

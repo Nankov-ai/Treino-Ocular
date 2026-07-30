@@ -73,6 +73,8 @@ Gated behind the `settings.soundEnabled` boolean (`SoundToggle` component), defa
 
 `PencilPushUp` has two modes: a default **guided** mode (configurable duration/reps, like the other exercises, ending in `CompletionScreen`) and a **free** mode (the original unlimited manual/auto oscillation, no rep counting, reachable via a link on the settings screen) — the free mode has no natural end, so it's excluded from `EXERCISE_CATALOG`/routines.
 
+Every exercise's pre-start screen leads with a one-line plain-language description of what the exercise involves (e.g. "Mova só os olhos entre os dois pontos, sem mover a cabeça." for Saccades), **before** any `SettingsInput` fields — so the user knows what to expect before configuring duration/reps, not after. `NearFarFocus`, `NearFocus`, and `Saccades` were the last three missing this (added after an audit); keep new exercises consistent with description-first ordering.
+
 Rep-counting exercises with a near/far (or similar) pair use a **half-cycle counter** (`halfCyclesLeft`, displayed as `Math.ceil(halfCyclesLeft / 2)`) rather than decrementing once per pair — this is what `Saccades` always did, and `NearFarFocus`/`NearFocus` were migrated to match after a background-tab timer throttling bug let a burst of catch-up ticks decrement a plain counter past 0 without the completion effect ever seeing exactly `0` (fixed generally with `Math.max(0, ...)` clamps, but the half-cycle pattern is the more robust shape for anything counting phase pairs).
 
 ### Background music (services/music.ts)
